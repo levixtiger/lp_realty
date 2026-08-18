@@ -74,8 +74,8 @@ export function AgentsPanel({ agents, listings, onSave, onUploadPhoto, onNotice 
 
         {selected ? (
           <aside className="agent-profile-detail">
+            <AgentPhoto agent={selected} size="cover" />
             <div className="agent-profile-hero">
-              <AgentPhoto agent={selected} size="hero" />
               <div><p>Agent profile</p><h2>{selected.full_name}</h2><span>{selected.title || "Real Estate Agent"}</span></div>
               <button className="icon-button" onClick={() => setEditor(selected)} aria-label={`Edit ${selected.full_name}`}><Pencil size={16} /></button>
             </div>
@@ -160,7 +160,7 @@ function AgentEditor({ agent, onClose, onSave, onUploadPhoto }: { agent?: Agent;
   </div>;
 }
 
-function AgentPhoto({ agent, size }: { agent: Agent; size: "card" | "hero" }) {
+function AgentPhoto({ agent, size }: { agent: Agent; size: "card" | "cover" }) {
   const source = agent.display_photo_url || (agent.photo_url?.startsWith("http") ? agent.photo_url : "");
   return <span className={`agent-photo ${size}`}>{source ? <img src={source} alt={`${agent.full_name} profile`} /> : initials(agent.full_name)}</span>;
 }
