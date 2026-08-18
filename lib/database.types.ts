@@ -4,9 +4,9 @@ export type Database = {
   public: {
     Tables: {
       agents: {
-        Row: { id: string; clerk_user_id: string | null; full_name: string; email: string | null; phone: string | null; active: boolean; created_at: string };
-        Insert: { id?: string; clerk_user_id?: string | null; full_name: string; email?: string | null; phone?: string | null; active?: boolean; created_at?: string };
-        Update: { id?: string; clerk_user_id?: string | null; full_name?: string; email?: string | null; phone?: string | null; active?: boolean; created_at?: string };
+        Row: { id: string; clerk_user_id: string | null; full_name: string; email: string | null; phone: string | null; title: string | null; bio: string | null; photo_url: string | null; license_number: string | null; languages: string[]; active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; clerk_user_id?: string | null; full_name: string; email?: string | null; phone?: string | null; title?: string | null; bio?: string | null; photo_url?: string | null; license_number?: string | null; languages?: string[]; active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; clerk_user_id?: string | null; full_name?: string; email?: string | null; phone?: string | null; title?: string | null; bio?: string | null; photo_url?: string | null; license_number?: string | null; languages?: string[]; active?: boolean; created_at?: string; updated_at?: string };
         Relationships: [];
       };
       listings: {

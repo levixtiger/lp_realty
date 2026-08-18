@@ -24,8 +24,25 @@ import {
   X,
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { AgentsPanel } from "./agents-panel";
 
-export type Agent = { id: string; full_name: string; email: string | null; phone: string | null };
+export type Agent = {
+  id: string;
+  clerk_user_id?: string | null;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  title: string | null;
+  bio: string | null;
+  photo_url: string | null;
+  display_photo_url?: string | null;
+  license_number: string | null;
+  languages: string[];
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+export type AgentDraft = Pick<Agent, "full_name" | "email" | "phone" | "title" | "bio" | "photo_url" | "license_number" | "languages" | "active">;
 export type ListingStatus = "draft" | "coming_soon" | "active" | "under_contract" | "sold" | "off_market";
 
 export type Listing = {
@@ -86,7 +103,11 @@ export type ListingDraft = {
   published: boolean;
 };
 
-const sampleAgent: Agent = { id: "lin-pan", full_name: "Lin Pan", email: "lin@linpanrealty.com", phone: "917-902-8853" };
+const sampleAgent: Agent = {
+  id: "lin-pan", full_name: "Lin Pan", email: "lin@linpanrealty.com", phone: "917-902-8853",
+  title: "Licensed Real Estate Broker", bio: "Lin helps buyers, sellers, and investors navigate New York real estate with local market knowledge and attentive, multilingual service.",
+  photo_url: null, license_number: null, languages: ["English", "Mandarin"], active: true,
+};
 const sampleImage = "https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779201331980-BBL8UFQ1W7CN5LY8GAZA/131-07%2B40th%2BRd_1.jpeg";
 const MAX_LISTING_IMAGES = 30;
 
@@ -119,11 +140,14 @@ type Props = {
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
   onDelete?: (id: string) => Promise<boolean>;
   onUploadImages?: (files: File[], slug: string) => Promise<string[]>;
+  onSaveAgent?: (draft: AgentDraft, id?: string) => Promise<boolean>;
+  onUploadAgentPhoto?: (file: File) => Promise<string>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, accountSlot, error, onSave, onDelete, onUploadImages }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
-  const [agents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
+  const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
+  const [activeView, setActiveView] = useState<"listings" | "agents">("listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ListingStatus | "all">("all");
@@ -137,6 +161,10 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
       if (!initialListings.some((item) => item.id === selectedId)) setSelectedId(initialListings[0]?.id || "");
     }
   }, [initialListings, selectedId]);
+
+  useEffect(() => {
+    if (initialAgents) setAgents(initialAgents.length ? initialAgents : []);
+  }, [initialAgents]);
 
   const filtered = useMemo(() => listings.filter((listing) => {
     const matchesFilter = filter === "all" || listing.status === filter;
@@ -191,14 +219,24 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
     setNotice(mode === "live" ? "Listing removed" : "Preview listing removed");
   };
 
+  const saveAgent = async (draft: AgentDraft, id?: string) => {
+    if (mode === "live" && onSaveAgent) return onSaveAgent(draft, id);
+    if (id) {
+      setAgents((current) => current.map((agent) => agent.id === id ? { ...agent, ...draft, updated_at: new Date().toISOString() } : agent));
+    } else {
+      setAgents((current) => [...current, { ...draft, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
+    }
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
         <div className="brand"><img className="brand-logo" src="/lin-pan-logo.png" alt="Lin Pan International Realty" /></div>
         <nav>
           <a href="#"><LayoutDashboard size={18} />Overview</a>
-          <a href="#" className="active"><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></a>
-          <a href="#"><Users size={18} />Agents</a>
+          <button type="button" className={activeView === "listings" ? "active" : ""} onClick={() => { setActiveView("listings"); setMobileNav(false); }}><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></button>
+          <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>
           <a href="#"><BarChart3 size={18} />Sales history<span className="soon">Soon</span></a>
           <p>Workspace</p>
           <a href="#"><FileText size={18} />Activity log</a>
@@ -212,11 +250,11 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / Listings</p><h1>Listing management</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : "Agents"}</p><h1>{activeView === "listings" ? "Listing management" : "Agent directory"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
-            <button className="primary-button" onClick={() => setEditor("new")}><Plus size={17} />New listing</button>
+            {activeView === "listings" && <button className="primary-button" onClick={() => setEditor("new")}><Plus size={17} />New listing</button>}
           </div>
         </header>
 
@@ -224,7 +262,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
         {error && <div className="error-banner">{error}</div>}
         {notice && <button className="toast" onClick={() => setNotice("")}><Check size={16} />{notice}<X size={14} /></button>}
 
-        <div className="metrics-row">
+        {activeView === "listings" ? <><div className="metrics-row">
           <div className="metric"><span>Total inventory</span><strong>{listings.length}</strong><small>All current listings</small></div>
           <div className="metric"><span>Active</span><strong>{activeCount}</strong><small><i className="dot green" />Live on website</small></div>
           <div className="metric"><span>Under contract</span><strong>{contractCount}</strong><small><i className="dot amber" />Pending closing</small></div>
@@ -276,7 +314,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
               </div>
             </aside>
           ) : <aside className="detail-panel empty-detail"><Building2 size={32} /><p>Select a listing to view its details.</p></aside>}
-        </div>
+        </div></> : <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}

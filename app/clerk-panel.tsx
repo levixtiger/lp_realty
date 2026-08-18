@@ -7,12 +7,14 @@ import type { Database } from "../lib/database.types";
 import {
   ListingPanel,
   type Agent,
+  type AgentDraft,
   type Listing,
   type ListingDraft,
 } from "./listings-panel";
 
 type DbClient = SupabaseClient<Database>;
 const LISTING_IMAGE_BUCKET = "listing-images";
+const AGENT_PHOTO_BUCKET = "agent-photos";
 
 export function AuthenticatedPanel() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -38,10 +40,10 @@ export function AuthenticatedPanel() {
     const [listingResult, agentResult] = await Promise.all([
       supabase
         .from("listings")
-        .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone)")
+        .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)")
         .is("deleted_at", null)
         .order("updated_at", { ascending: false }),
-      supabase.from("agents").select("id,full_name,email,phone").eq("active", true).order("full_name"),
+      supabase.from("agents").select("id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at").eq("active", true).order("full_name"),
     ]);
 
     if (listingResult.error || agentResult.error) {
@@ -64,7 +66,19 @@ export function AuthenticatedPanel() {
           .map((image) => isExternalImage(image) ? image : signedUrls.get(image))
           .filter((image): image is string => Boolean(image)),
       })));
-      setAgents((agentResult.data || []) as Agent[]);
+      const rawAgents = (agentResult.data || []) as Agent[];
+      const agentPhotoPaths = [...new Set(rawAgents.map((agent) => agent.photo_url).filter((photo): photo is string => Boolean(photo) && !isExternalImage(photo!)))];
+      const agentPhotoUrls = new Map<string, string>();
+      if (agentPhotoPaths.length) {
+        const signedResult = await supabase.storage.from(AGENT_PHOTO_BUCKET).createSignedUrls(agentPhotoPaths, 60 * 60);
+        for (const image of signedResult.data || []) {
+          if (image.path && image.signedUrl) agentPhotoUrls.set(image.path, image.signedUrl);
+        }
+      }
+      setAgents(rawAgents.map((agent) => ({
+        ...agent,
+        display_photo_url: agent.photo_url ? (isExternalImage(agent.photo_url) ? agent.photo_url : agentPhotoUrls.get(agent.photo_url) || null) : null,
+      })));
     }
     setLoading(false);
   }, [supabase]);
@@ -106,6 +120,27 @@ export function AuthenticatedPanel() {
     return true;
   };
 
+  const saveAgent = async (draft: AgentDraft, id?: string) => {
+    if (!supabase) return false;
+    const payload = {
+      ...draft,
+      email: draft.email || null,
+      phone: draft.phone || null,
+      title: draft.title || null,
+      bio: draft.bio || null,
+      photo_url: draft.photo_url || null,
+      license_number: draft.license_number || null,
+      languages: draft.languages.filter(Boolean),
+      updated_at: new Date().toISOString(),
+    };
+    const result = id
+      ? await supabase.from("agents").update(payload).eq("id", id)
+      : await supabase.from("agents").insert(payload);
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
   const uploadImages = async (files: File[], slug: string) => {
     if (!supabase || !user) throw new Error("Sign in before uploading images.");
     setError("");
@@ -138,6 +173,19 @@ export function AuthenticatedPanel() {
     return uploadedPaths;
   };
 
+  const uploadAgentPhoto = async (file: File) => {
+    if (!supabase || !user) throw new Error("Sign in before uploading a profile photo.");
+    const extensionForType: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" };
+    const extension = extensionForType[file.type];
+    if (!extension) throw new Error(`${file.name} is not a supported image type.`);
+    const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from(AGENT_PHOTO_BUCKET).upload(path, file, {
+      cacheControl: "3600", contentType: file.type, upsert: false,
+    });
+    if (uploadError) { setError(uploadError.message); throw new Error(uploadError.message); }
+    return path;
+  };
+
   if (!isLoaded) return <PanelLoading />;
   if (!isSignedIn) {
     return (
@@ -163,6 +211,8 @@ export function AuthenticatedPanel() {
       onSave={save}
       onDelete={remove}
       onUploadImages={uploadImages}
+      onSaveAgent={saveAgent}
+      onUploadAgentPhoto={uploadAgentPhoto}
     />
   );
 }
