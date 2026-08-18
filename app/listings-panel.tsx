@@ -88,6 +88,7 @@ export type ListingDraft = {
 
 const sampleAgent: Agent = { id: "lin-pan", full_name: "Lin Pan", email: "lin@linpanrealty.com", phone: "917-902-8853" };
 const sampleImage = "https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779201331980-BBL8UFQ1W7CN5LY8GAZA/131-07%2B40th%2BRd_1.jpeg";
+const MAX_LISTING_IMAGES = 30;
 
 const sampleListings: Listing[] = [
   {
@@ -299,9 +300,9 @@ function ListingEditor({ listing, agents, onClose, onSave, onUploadImages }: { l
       event.target.value = "";
       return;
     }
-    const available = Math.max(0, 12 - draft.image_urls.length - pendingFiles.length);
+    const available = Math.max(0, MAX_LISTING_IMAGES - draft.image_urls.length - pendingFiles.length);
     setPendingFiles((current) => [...current, ...files.slice(0, available)]);
-    setUploadError(files.length > available ? "A listing can contain up to 12 images." : "");
+    setUploadError(files.length > available ? `A listing can contain up to ${MAX_LISTING_IMAGES} images.` : "");
     event.target.value = "";
   };
   const submit = async (event: FormEvent) => {
@@ -344,7 +345,7 @@ function ListingEditor({ listing, agents, onClose, onSave, onUploadImages }: { l
             <label>Open house<input value={draft.open_house || ""} onChange={(e) => set("open_house", e.target.value)} placeholder="Optional" /></label>
             <label className="full">Description<textarea rows={4} value={draft.description || ""} onChange={(e) => set("description", e.target.value)} /></label>
             <div className="image-upload full">
-              <div><strong>Property images</strong><small>JPEG, PNG, WebP, or AVIF · 10 MB max · up to 12 images</small></div>
+              <div><strong>Property images</strong><small>JPEG, PNG, WebP, or AVIF · 10 MB max · up to {MAX_LISTING_IMAGES} images</small></div>
               <label className="upload-dropzone">
                 <ImagePlus size={24} />
                 <span><strong>Choose images</strong><small>The first image becomes the listing hero.</small></span>

@@ -5,7 +5,7 @@ An internal Next.js listing-management workspace using Clerk for employee authen
 ## Included
 
 - Create, edit, publish, and remove listings.
-- Upload up to 12 listing images to a private Supabase Storage bucket.
+- Upload up to 30 listing images to a private Supabase Storage bucket.
 - Status workflow: draft, coming soon, active, under contract, sold, and off market.
 - Listing-agent and sold-by-agent attribution.
 - Soft deletion and an immutable listing activity trail.
