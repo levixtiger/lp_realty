@@ -6,6 +6,7 @@ import {
   Building2,
   Check,
   ChevronRight,
+  CircleUserRound,
   CircleDollarSign,
   Clock3,
   ExternalLink,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { AgentsPanel } from "./agents-panel";
+import { LeadsPanel, type InteractionDraft, type Lead, type LeadDraft, type LeadInteraction } from "./leads-panel";
 
 export type Agent = {
   id: string;
@@ -135,6 +137,8 @@ type Props = {
   mode: "demo" | "live";
   initialListings?: Listing[];
   initialAgents?: Agent[];
+  initialLeads?: Lead[];
+  initialLeadInteractions?: LeadInteraction[];
   accountSlot?: ReactNode;
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
@@ -142,12 +146,17 @@ type Props = {
   onUploadImages?: (files: File[], slug: string) => Promise<string[]>;
   onSaveAgent?: (draft: AgentDraft, id?: string) => Promise<boolean>;
   onUploadAgentPhoto?: (file: File) => Promise<string>;
+  onSaveLead?: (draft: LeadDraft, id?: string) => Promise<boolean>;
+  onDeleteLead?: (id: string) => Promise<boolean>;
+  onAddLeadInteraction?: (leadId: string, draft: InteractionDraft) => Promise<boolean>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
-  const [activeView, setActiveView] = useState<"listings" | "agents">("listings");
+  const [leads, setLeads] = useState(initialLeads || []);
+  const [leadInteractions, setLeadInteractions] = useState(initialLeadInteractions || []);
+  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads">("listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ListingStatus | "all">("all");
@@ -165,6 +174,9 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
   useEffect(() => {
     if (initialAgents) setAgents(initialAgents.length ? initialAgents : []);
   }, [initialAgents]);
+
+  useEffect(() => { if (initialLeads) setLeads(initialLeads); }, [initialLeads]);
+  useEffect(() => { if (initialLeadInteractions) setLeadInteractions(initialLeadInteractions); }, [initialLeadInteractions]);
 
   const filtered = useMemo(() => listings.filter((listing) => {
     const matchesFilter = filter === "all" || listing.status === filter;
@@ -229,6 +241,26 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
     return true;
   };
 
+  const saveLead = async (draft: LeadDraft, id?: string) => {
+    if (mode === "live" && onSaveLead) return onSaveLead(draft, id);
+    const assignedAgent = agents.find((agent) => agent.id === draft.assigned_agent_id) || null;
+    if (id) setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...draft, assigned_agent: assignedAgent, updated_at: new Date().toISOString() } : lead));
+    else setLeads((current) => [{ ...draft, id: crypto.randomUUID(), created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), assigned_agent: assignedAgent }, ...current]);
+    return true;
+  };
+
+  const deleteLead = async (id: string) => {
+    if (mode === "live" && onDeleteLead) return onDeleteLead(id);
+    setLeads((current) => current.filter((lead) => lead.id !== id));
+    return true;
+  };
+
+  const addLeadInteraction = async (leadId: string, draft: InteractionDraft) => {
+    if (mode === "live" && onAddLeadInteraction) return onAddLeadInteraction(leadId, draft);
+    setLeadInteractions((current) => [{ ...draft, id: crypto.randomUUID(), lead_id: leadId, actor_clerk_user_id: "preview", actor_name: "Preview user", created_at: new Date().toISOString() }, ...current]);
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
@@ -237,6 +269,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
           <a href="#"><LayoutDashboard size={18} />Overview</a>
           <button type="button" className={activeView === "listings" ? "active" : ""} onClick={() => { setActiveView("listings"); setMobileNav(false); }}><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></button>
           <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>
+          <button type="button" className={activeView === "leads" ? "active" : ""} onClick={() => { setActiveView("leads"); setMobileNav(false); }}><CircleUserRound size={18} />Leads<span className="nav-count">{leads.length}</span></button>
           <a href="#"><BarChart3 size={18} />Sales history<span className="soon">Soon</span></a>
           <p>Workspace</p>
           <a href="#"><FileText size={18} />Activity log</a>
@@ -250,7 +283,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : "Agents"}</p><h1>{activeView === "listings" ? "Listing management" : "Agent directory"}</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : "Leads"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : "Lead management"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
@@ -314,7 +347,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
               </div>
             </aside>
           ) : <aside className="detail-panel empty-detail"><Building2 size={32} /><p>Select a listing to view its details.</p></aside>}
-        </div></> : <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} />}
+        </div></> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}

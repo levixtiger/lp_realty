@@ -50,3 +50,22 @@ test("agents tab includes profiles, photo upload, and derived sales history", as
   assert.match(officialImport, /images\.squarespace-cdn\.com/);
   assert.match(officialImport, /on conflict \(lower\(email\)\)/);
 });
+
+test("leads tab persists contacts and employee interaction history", async () => {
+  const [leadsPanel, listingPanel, clerkPanel, migration] = await Promise.all([
+    readFile(new URL("../app/leads-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260818223000_add_lead_management.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /activeView === "leads"/);
+  assert.match(leadsPanel, /Interaction history/);
+  assert.match(leadsPanel, /Next follow-up/);
+  assert.match(leadsPanel, /Log interaction/);
+  assert.match(clerkPanel, /from\("lead_interactions"\)/);
+  assert.match(clerkPanel, /actor_clerk_user_id: user\.id/);
+  assert.match(migration, /create table public\.leads/);
+  assert.match(migration, /create table public\.lead_interactions/);
+  assert.match(migration, /employees_manage_lead_interactions/);
+});

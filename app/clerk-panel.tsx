@@ -11,6 +11,7 @@ import {
   type Listing,
   type ListingDraft,
 } from "./listings-panel";
+import type { InteractionDraft, Lead, LeadDraft, LeadInteraction } from "./leads-panel";
 
 type DbClient = SupabaseClient<Database>;
 const LISTING_IMAGE_BUCKET = "listing-images";
@@ -21,6 +22,8 @@ export function AuthenticatedPanel() {
   const { session } = useSession();
   const [listings, setListings] = useState<Listing[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadInteractions, setLeadInteractions] = useState<LeadInteraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,19 +38,20 @@ export function AuthenticatedPanel() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    setLoading(true);
     setError("");
-    const [listingResult, agentResult] = await Promise.all([
+    const [listingResult, agentResult, leadResult, interactionResult] = await Promise.all([
       supabase
         .from("listings")
         .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)")
         .is("deleted_at", null)
         .order("updated_at", { ascending: false }),
       supabase.from("agents").select("id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at").eq("active", true).order("full_name"),
+      supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)").is("deleted_at", null).order("updated_at", { ascending: false }),
+      supabase.from("lead_interactions").select("*").order("happened_at", { ascending: false }),
     ]);
 
-    if (listingResult.error || agentResult.error) {
-      setError(listingResult.error?.message || agentResult.error?.message || "Unable to load listings.");
+    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error) {
+      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || "Unable to load workspace data.");
     } else {
       const rawListings = (listingResult.data || []) as unknown as Listing[];
       const storagePaths = [...new Set(rawListings.flatMap((listing) => listing.image_urls).filter((image) => !isExternalImage(image)))];
@@ -79,6 +83,8 @@ export function AuthenticatedPanel() {
         ...agent,
         display_photo_url: agent.photo_url ? (isExternalImage(agent.photo_url) ? agent.photo_url : agentPhotoUrls.get(agent.photo_url) || null) : null,
       })));
+      setLeads((leadResult.data || []) as unknown as Lead[]);
+      setLeadInteractions((interactionResult.data || []) as unknown as LeadInteraction[]);
     }
     setLoading(false);
   }, [supabase]);
@@ -186,6 +192,33 @@ export function AuthenticatedPanel() {
     return path;
   };
 
+  const saveLead = async (draft: LeadDraft, id?: string) => {
+    if (!supabase || !user) return false;
+    const payload = { ...draft, email: draft.email || null, phone: draft.phone || null, source: draft.source || null, assigned_agent_id: draft.assigned_agent_id || null, preferred_areas: draft.preferred_areas.filter(Boolean), property_interest: draft.property_interest || null, notes: draft.notes || null, updated_by: user.id };
+    const result = id ? await supabase.from("leads").update(payload).eq("id", id) : await supabase.from("leads").insert({ ...payload, created_by: user.id });
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
+  const deleteLead = async (id: string) => {
+    if (!supabase || !user) return false;
+    const { error: deleteError } = await supabase.from("leads").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", id);
+    if (deleteError) { setError(deleteError.message); return false; }
+    await load();
+    return true;
+  };
+
+  const addLeadInteraction = async (leadId: string, draft: InteractionDraft) => {
+    if (!supabase || !user) return false;
+    const { error: interactionError } = await supabase.from("lead_interactions").insert({ ...draft, lead_id: leadId, actor_clerk_user_id: user.id, actor_name: user.fullName || user.primaryEmailAddress?.emailAddress || "Team member" });
+    if (interactionError) { setError(interactionError.message); return false; }
+    const { error: touchError } = await supabase.from("leads").update({ updated_by: user.id }).eq("id", leadId);
+    if (touchError) { setError(touchError.message); return false; }
+    await load();
+    return true;
+  };
+
   if (!isLoaded) return <PanelLoading />;
   if (!isSignedIn) {
     return (
@@ -206,6 +239,8 @@ export function AuthenticatedPanel() {
       mode="live"
       initialListings={listings}
       initialAgents={agents}
+      initialLeads={leads}
+      initialLeadInteractions={leadInteractions}
       error={error}
       accountSlot={<UserButton />}
       onSave={save}
@@ -213,6 +248,9 @@ export function AuthenticatedPanel() {
       onUploadImages={uploadImages}
       onSaveAgent={saveAgent}
       onUploadAgentPhoto={uploadAgentPhoto}
+      onSaveLead={saveLead}
+      onDeleteLead={deleteLead}
+      onAddLeadInteraction={addLeadInteraction}
     />
   );
 }
