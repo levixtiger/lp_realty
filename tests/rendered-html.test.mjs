@@ -28,11 +28,12 @@ test("server-renders the branded authenticated panel", async () => {
 });
 
 test("agents tab includes profiles, photo upload, and derived sales history", async () => {
-  const [agentsPanel, listingPanel, clerkPanel, migration] = await Promise.all([
+  const [agentsPanel, listingPanel, clerkPanel, migration, officialImport] = await Promise.all([
     readFile(new URL("../app/agents-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818183000_add_agent_profiles.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260818193000_import_official_team.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(listingPanel, /activeView === "agents"/);
@@ -45,4 +46,7 @@ test("agents tab includes profiles, photo upload, and derived sales history", as
   assert.match(migration, /add column bio text/);
   assert.match(migration, /create policy "agent_photos_employee_select"/);
   assert.match(migration, /on storage\.objects for insert to authenticated/);
+  assert.match(officialImport, /agents_email_unique_idx/);
+  assert.match(officialImport, /images\.squarespace-cdn\.com/);
+  assert.match(officialImport, /on conflict \(lower\(email\)\)/);
 });

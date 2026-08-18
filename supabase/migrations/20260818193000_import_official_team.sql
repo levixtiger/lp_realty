@@ -1,0 +1,51 @@
+create unique index if not exists agents_email_unique_idx
+  on public.agents (lower(email))
+  where email is not null;
+
+insert into public.agents (full_name, email, phone, title, bio, photo_url, languages, active)
+values
+  ('Lin Pan', 'lin@linpanrealty.com', '917-902-8853', 'Real Estate Owner/Broker', 'Founder of Lin Pan Realty, serving residential and commercial clients across Manhattan, Queens, Brooklyn, and Long Island since 2012.', 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817122311-8CIK44R7BXGHK68JRB3H/hirez.linpan.hilite.jpg?format=300w', '{}', true),
+  ('Haiying Tian', 'htian@linpanrealty.com', '347-223-6355', 'Licensed Real Estate Salesperson', 'A multilingual New York agent focused on Manhattan and Queens residential and commercial transactions for local and international clients.', 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1780061764155-RN1GHGDO2HHNERX8HFIL/image-asset.png?format=300w', array['English','Chinese','Japanese'], true),
+  ('Kathy(Zhulan) Wang', 'kathy@linpanrealty.com', '516-835-0666', 'Licensed Real Estate Salesperson', null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817142555-XUV4RI5335E4YCB0XZ9H/agent.KathyWang.jpg?format=300w', '{}', true),
+  ('Yang Yang (Karen)', 'karen@linpanrealty.com', '646-408-5918', 'Licensed Real Estate Salesperson', null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817165887-V90YJMZ6NQYJPF7YWE4J/agent.KarenYang.jpg?format=300w', '{}', true),
+  ('Sulan Chen', 'sulan@linpanrealty.com', '646-641-2345', 'Licensed Real Estate Salesperson', null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817195614-NBGNTIK7N00JKVL5UKEF/Sulan%2BChen.jpg?format=300w', '{}', true),
+  ('Fan Liu', 'fan@linpanrealty.com', '516-838-3577', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817289801-RX831B4WRK5CXWRA5IN3/Fanliu.jpg?format=300w', '{}', true),
+  ('Lin Lin Kuriyama', 'linlin22@linpanrealty.com', '516-472-8112', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817313684-5QZZFACAKB9XLTXCL6P8/LinLin.Kuriyama.jpg?format=300w', '{}', true),
+  ('Lisa Cao', 'lisa@linpanrealty.com', '347-992-0204', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817334367-MDMRIL0C3FAD7MRU9KZ0/agent.LisaCao.jpg?format=300w', '{}', true),
+  ('Steven Qiao', 'yiqiao@linpanrealty.com', '631-702-0692', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817381149-GWOKZJL1PBS1U30O09PI/Steven%2BQiao.jpg?format=300w', '{}', true),
+  ('Qian (Jessica) Huang', 'jessica@linpanrealty.com', '646-785-1699', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817466932-N5K8QJOB6A2G6CJV7J9Z/Jessica+Huang.jpg?format=300w', '{}', true),
+  ('Weiye Chen (Victor)', 'chen@linpanrealty.com', '646-785-9058', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817500949-RMVVGGDFKWTJQ4OX5SRI/VictorChen.jpg?format=300w', '{}', true),
+  ('Stella Hakimi', 'stella@linpanrealty.com', '516-808-3033', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817426580-ADS6V61F5NFMZT6UA8H6/profile.stella_hakimi.jpg?format=300w', '{}', true),
+  ('Angel Chen', 'angel@linpanrealty.com', '718-865-7818', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779824574394-D97MYQMT5UQ0DRWN70H0/image-asset.png?format=300w', '{}', true),
+  ('Alice Chui', 'alicechui@linpanrealty.com', '929-633-0710', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779816305669-SCKZMLZRXL80QSQC0Q3A/AliceChui.jpg?format=300w', '{}', true),
+  ('Lingling Gong', 'llg@linpanrealty.com', '347-592-3796', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779816387310-MTP0UGL0W4PQKIC3KX92/image-asset.png?format=300w', '{}', true),
+  ('Derek (Xing) Zheng', 'derek@linpanrealty.com', '917-902-3898', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818074956-PKFBK4AN4NQ4E7CQ7E2A/xing.800x666.jpg?format=300w', '{}', true),
+  ('Ling Li', 'lingli@linpanrealty.com', '516-274-9098', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818053229-9N3FFIQ8KBPR3UNK6KZ2/profile.LingLi.png?format=300w', '{}', true),
+  ('Weidong (Alex) Shen', 'alex@linpanrealty.com', '347-320-4291', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818026940-LV57M55C054863140S29/Alex+Shen.jpg?format=300w', '{}', true),
+  ('Lei (William) Fang', 'will@linpanrealty.com', '917-548-1287', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818007312-TVWXPTX4LLZ1WKDUYGLQ/WillFang.png?format=300w', '{}', true),
+  ('Yiyi (Zoe) Liu', 'zoe@linpanrealty.com', '347-827-9888', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817983419-6PLNLIFG62B4GKRVWX28/Image_20250923123340_329_39.png?format=300w', '{}', true),
+  ('Chunling Li', 'li@linpanrealty.com', '347-245-5139', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818879643-YOUBHKMC4MX26OMQ1O5K/Chunling+Li.jpg?format=300w', '{}', true),
+  ('Xu Jing', 'xu@linpanrealty.com', '929-553-4138', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817952241-KNHD0HNGIMJKVC3JWVEL/JingXu.jpg?format=300w', '{}', true),
+  ('Changyao (Cecilia) Xu', 'cecilia@linpanrealty.com', '929-519-5963', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779824644866-RP37WZ0HBJHSTTSNG2FY/image-asset.png?format=300w', '{}', true),
+  ('Yanping Ye (Shirley)', 'shirleyye@linpanrealty.com', '917-893-1619', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817860652-B6H559DRMIWJVB72XBZ2/image-asset.png?format=300w', '{}', true),
+  ('Chunnuan (William) Liu', 'william@linpanrealty.com', '718-730-2760', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817837803-KGXXPBIEREE0FRQKOBTB/William-Liu--285x345.jpg?format=300w', '{}', true),
+  ('Yanni Ping', 'yanni@linpanrealty.com', '404-862-3899', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779824701401-NZ2313KKDY6II47CISJW/Yanni.png?format=300w', '{}', true),
+  ('Yan Huang (Emily)', 'emily@linpanrealty.com', '917-291-2321', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817797986-LJ16BEQO791TSWNJW3C9/EmilyHuang.jpg?format=300w', '{}', true),
+  ('Inbar Mitzman', 'mitzman@linpanrealty.com', '516-551-5727', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779819109618-LRJ7ZJSVL0LB6R9SH8J9/image-asset.png?format=300w', '{}', true),
+  ('Lingjue(Will) Wan', 'wan@linpanrealty.com', '646-707-7888', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817726004-10NLAMH3JANRBJDW47G3/WillWan.jpg?format=300w', '{}', true),
+  ('Xiaoyue (Nikki) Zhang', 'nikki@linpanrealty.com', '646-727-8592', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779817773149-DFX6C4ZJ5553CQPQ09A8/image-asset.jpg?format=300w', '{}', true),
+  ('Kevin Chiou', 'kevin@linpanrealty.com', '347-546-2988', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779824750600-R7VTWDNDEGZPQNN897Y9/Image_20250930163305_6_276.jpg?format=300w', '{}', true),
+  ('Jingwei (William) Wu', 'wu@linpanrealty.com', '518-800-2388', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818494432-30UMMVNTPN3WAGJ25F4N/William+Wu.jpg?format=300w', '{}', true),
+  ('Jing Su', 'jingsu@linpanrealty.com', '347-699-8966', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779818448525-5HQT5N0YYQDXTGXW5Y6D/JingSu.png?format=300w', '{}', true),
+  ('Jeff Liu', 'jeff@linpanrealty.com', '646-388-2379', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1779824796049-1PRFF6O3K8SHNIN1C9QG/image-asset.png?format=300w', '{}', true),
+  ('Wentao Li (Wendy)', 'wendy@linpanrealty.com', '516-606-1283', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1786737357041-07O0PPOZULQPU5ECSV2P/WendyLi.png?format=300w', '{}', true),
+  ('Zheng Wang', 'sara@linpanrealty.com', '330-389-3862', null, null, 'https://images.squarespace-cdn.com/content/v1/5c5b60544d8711f8303688bb/1785159385411-X6HBE5BCNO4XXLC29J0J/image-asset.jpeg?format=300w', '{}', true)
+on conflict (lower(email)) where email is not null do update
+set full_name = excluded.full_name,
+    phone = excluded.phone,
+    title = coalesce(excluded.title, public.agents.title),
+    bio = coalesce(excluded.bio, public.agents.bio),
+    photo_url = excluded.photo_url,
+    languages = case when cardinality(excluded.languages) > 0 then excluded.languages else public.agents.languages end,
+    active = true,
+    updated_at = now();
