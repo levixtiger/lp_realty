@@ -14,7 +14,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--cream); color: var(--ink); }
-body { font-family: var(--font-geist-sans), Arial, sans-serif; }
+body { font-family: "Inter Variable", Inter, "Segoe UI", Arial, sans-serif; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { color: inherit; }
@@ -37,7 +37,7 @@ button { color: inherit; }
 .workspace { min-width: 0; padding: 0 34px 34px; }
 .topbar { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
 .breadcrumb { margin: 0 0 5px; color: #8a928e; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.topbar h1 { margin: 0; font-family: Georgia, serif; font-size: 23px; font-weight: 600; letter-spacing: -.3px; }
+.topbar h1 { margin: 0; font-size: 23px; font-weight: 650; letter-spacing: -.3px; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
 .preview-pill { height: 29px; padding: 0 11px; display: inline-flex; align-items: center; gap: 7px; border-radius: 20px; background: #eef2ec; color: #68716c; font-size: 11px; font-weight: 600; }
 .preview-pill > span { width: 7px; height: 7px; border-radius: 50%; background: #d6a84b; }
@@ -68,7 +68,7 @@ button { color: inherit; }
 .metric { min-height: 98px; padding: 17px 21px; border-right: 1px solid var(--line); }
 .metric:last-child { border: 0; }
 .metric > span { display: block; color: #758078; font-size: 10px; text-transform: uppercase; letter-spacing: .85px; font-weight: 650; }
-.metric strong { display: block; margin: 7px 0 6px; font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
+.metric strong { display: block; margin: 7px 0 6px; font-size: 25px; font-weight: 620; letter-spacing: -.5px; }
 .metric small { display: flex; align-items: center; gap: 6px; color: #8a938d; font-size: 10px; }
 .metric.value strong { color: #244f39; }
 .dot { width: 6px; height: 6px; border-radius: 50%; }.dot.green { background: #62a178; }.dot.amber { background: #d3a34d; }
@@ -100,7 +100,7 @@ button { color: inherit; }
 .status-badge.sold { background: #e7e5f5; color: #5f5796; }
 .status-badge.off_market { background: #f2e7e7; color: #8a5151; }
 .agent-cell { display: flex; align-items: center; gap: 7px; color: #59655e; font-size: 10px; }
-.price-cell { font-family: Georgia, serif; font-size: 12px; font-weight: 600; }
+.price-cell { font-size: 12px; font-weight: 650; }
 .listing-row > svg { color: #9aa29d; }
 .empty-state { min-height: 230px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #8d9690; }
 .empty-state strong { color: #4f5b54; font-size: 13px; }.empty-state span { font-size: 11px; }
@@ -111,12 +111,12 @@ button { color: inherit; }
 .detail-body { padding: 17px; }
 .detail-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .detail-title p { margin: 0 0 6px; color: #73907d; font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .8px; }
-.detail-title h2 { margin: 0; font-family: Georgia, serif; font-size: 20px; font-weight: 550; }
+.detail-title h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.3px; }
 .detail-title div > span { margin-top: 6px; display: flex; align-items: center; gap: 4px; color: #818b85; font-size: 10px; }
 .detail-title .icon-button { width: 32px; height: 32px; }
 .price-block { margin: 17px 0 14px; padding: 12px 13px; border-radius: 7px; background: #f5f7f4; }
 .price-block span { color: #7d8780; font-size: 9px; text-transform: uppercase; letter-spacing: .7px; }
-.price-block strong { display: block; margin-top: 4px; font-family: Georgia, serif; font-size: 21px; font-weight: 550; }
+.price-block strong { display: block; margin-top: 4px; font-size: 21px; font-weight: 650; letter-spacing: -.35px; }
 .facts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .facts-grid span, .agent-card div span { display: block; color: #89918c; font-size: 9px; }
 .facts-grid strong { display: block; margin-top: 4px; font-size: 10.5px; }
@@ -133,7 +133,7 @@ button { color: inherit; }
 .editor-modal { width: min(780px, 100%); max-height: calc(100vh - 44px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-radius: 13px; background: white; box-shadow: 0 25px 70px rgba(7,24,15,.28); overflow: hidden; }
 .editor-modal > header, .editor-modal > footer { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .editor-modal > footer { justify-content: flex-end; gap: 9px; border-top: 1px solid var(--line); border-bottom: 0; }
-.editor-modal h2 { margin: 0; font-family: Georgia, serif; font-size: 22px; font-weight: 550; }
+.editor-modal h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.35px; }
 .eyebrow { margin: 0 0 5px; color: #698472; font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: 1.05px; }
 .editor-content { overflow-y: auto; padding: 3px 22px 24px; }
 .editor-content section { padding-top: 19px; }
@@ -169,7 +169,7 @@ button { color: inherit; }
 .signin-page, .loading-page { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #f3f7ef, #e7eee8); }
 .signin-card { width: min(400px, calc(100% - 40px)); padding: 40px; border: 1px solid #dfe7e1; border-radius: 16px; background: rgba(255,255,255,.93); box-shadow: 0 24px 70px rgba(21,58,42,.12); text-align: center; }
 .signin-logo { width: min(280px, 100%); height: auto; display: block; margin: 0 auto 22px; }
-.signin-card .eyebrow { margin-top: 19px; }.signin-card h1 { margin: 7px 0 10px; font-family: Georgia, serif; font-size: 29px; font-weight: 550; }.signin-card > p:not(.eyebrow) { margin: 0; color: #727e76; font-size: 13px; line-height: 1.6; }
+.signin-card .eyebrow { margin-top: 19px; }.signin-card h1 { margin: 7px 0 10px; font-size: 29px; font-weight: 680; letter-spacing: -.55px; }.signin-card > p:not(.eyebrow) { margin: 0; color: #727e76; font-size: 13px; line-height: 1.6; }
 .loading-page { align-content: center; gap: 12px; color: #627068; font-size: 12px; }
 .loading-logo { width: min(260px, calc(100vw - 64px)); height: auto; display: block; margin-bottom: 6px; }
 .nav-scrim { display: none; }
