@@ -144,7 +144,7 @@ button { color: inherit; }
 .agent-profile-card:nth-child(2n) { border-right: 0; }
 .agent-profile-card:hover { background: #fafcf9; }
 .agent-profile-card.selected { background: #f3f7f1; box-shadow: inset 3px 0 #628b70; }
-.agent-photo { flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #dce8d9; color: #27543d; letter-spacing: .4px; }
+.agent-photo { flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: #dce8d9; color: #27543d; letter-spacing: .4px; }
 .agent-photo img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .agent-photo.card { width: 54px; height: 54px; font-size: 13px; }
 .agent-photo.cover { width: 100%; height: 250px; border-radius: 0; background: #d9e5dc; font-size: 34px; }
