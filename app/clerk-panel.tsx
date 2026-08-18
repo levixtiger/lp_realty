@@ -89,7 +89,7 @@ export function AuthenticatedPanel() {
     return true;
   };
 
-  if (!isLoaded || loading) return <PanelLoading />;
+  if (!isLoaded) return <PanelLoading />;
   if (!isSignedIn) {
     return (
       <main className="signin-page">
@@ -103,6 +103,7 @@ export function AuthenticatedPanel() {
       </main>
     );
   }
+  if (loading) return <PanelLoading />;
 
   return (
     <ListingPanel
