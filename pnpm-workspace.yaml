@@ -1,0 +1,9 @@
+packages:
+  - "."
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
+
+nodeLinker: hoisted
