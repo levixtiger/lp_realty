@@ -143,8 +143,7 @@ export function AuthenticatedPanel() {
     return (
       <main className="signin-page">
         <div className="signin-card">
-          <div className="brand-mark large">LP</div>
-          <p className="eyebrow">Lin Pan Realty Group</p>
+          <img className="signin-logo" src="/lin-pan-logo.png" alt="Lin Pan International Realty" />
           <h1>Internal listings</h1>
           <p>Sign in with your employee account to manage property listings.</p>
           <SignInButton mode="modal"><button className="primary-button wide">Sign in to continue</button></SignInButton>
@@ -175,7 +174,7 @@ function isExternalImage(value: string) {
 function PanelLoading() {
   return (
     <main className="loading-page">
-      <div className="brand-mark">LP</div>
+      <img className="loading-logo" src="/lin-pan-logo.png" alt="Lin Pan International Realty" />
       <span>Preparing listings…</span>
     </main>
   );

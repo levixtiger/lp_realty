@@ -194,7 +194,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="brand"><div className="brand-mark">LP</div><div><strong>Lin Pan Realty</strong><span>Internal workspace</span></div></div>
+        <div className="brand"><img className="brand-logo" src="/lin-pan-logo.png" alt="Lin Pan International Realty" /></div>
         <nav>
           <a href="#"><LayoutDashboard size={18} />Overview</a>
           <a href="#" className="active"><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></a>
