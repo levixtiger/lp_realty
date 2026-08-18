@@ -10,6 +10,7 @@ import {
   Clock3,
   ExternalLink,
   FileText,
+  ImagePlus,
   LayoutDashboard,
   MapPin,
   Menu,
@@ -22,7 +23,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 export type Agent = { id: string; full_name: string; email: string | null; phone: string | null };
 export type ListingStatus = "draft" | "coming_soon" | "active" | "under_contract" | "sold" | "off_market";
@@ -49,6 +50,7 @@ export type Listing = {
   sold_by_agent_id: string | null;
   sold_at: string | null;
   image_urls: string[];
+  display_image_urls?: string[];
   source_url: string | null;
   published: boolean;
   created_by: string;
@@ -115,9 +117,10 @@ type Props = {
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
   onDelete?: (id: string) => Promise<boolean>;
+  onUploadImages?: (files: File[], slug: string) => Promise<string[]>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, accountSlot, error, onSave, onDelete }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, accountSlot, error, onSave, onDelete, onUploadImages }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
@@ -241,7 +244,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
               {filtered.map((listing) => (
                 <button key={listing.id} className={`listing-row ${selected?.id === listing.id ? "selected" : ""}`} onClick={() => setSelectedId(listing.id)}>
                   <span className="property-cell">
-                    <span className="property-thumb">{listing.image_urls[0] ? <img src={listing.image_urls[0]} alt="" /> : <Building2 size={20} />}</span>
+                    <span className="property-thumb">{listingImage(listing) ? <img src={listingImage(listing)} alt="" /> : <Building2 size={20} />}</span>
                     <span><strong>{listing.title}</strong><small><MapPin size={12} />{listing.city}, {listing.state} · {listing.property_type}</small></span>
                   </span>
                   <StatusBadge status={listing.status} />
@@ -256,7 +259,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
 
           {selected ? (
             <aside className="detail-panel">
-              <div className="detail-image">{selected.image_urls[0] ? <img src={selected.image_urls[0]} alt={selected.title} /> : <Building2 size={36} />}<StatusBadge status={selected.status} /></div>
+              <div className="detail-image">{listingImage(selected) ? <img src={listingImage(selected)} alt={selected.title} /> : <Building2 size={36} />}<StatusBadge status={selected.status} /></div>
               <div className="detail-body">
                 <div className="detail-title"><div><p>{selected.property_type}</p><h2>{selected.title}</h2><span><MapPin size={14} />{selected.city}, {selected.state} {selected.postal_code}</span></div><button className="icon-button"><MoreHorizontal size={18} /></button></div>
                 <div className="price-block"><span>Asking price</span><strong>{formatMoney(selected.asking_price)}</strong></div>
@@ -275,21 +278,50 @@ export function ListingPanel({ mode, initialListings, initialAgents, accountSlot
         </div>
       </section>
 
-      {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} />}
+      {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}
     </main>
   );
 }
 
-function ListingEditor({ listing, agents, onClose, onSave }: { listing?: Listing; agents: Agent[]; onClose: () => void; onSave: (draft: ListingDraft, id?: string) => Promise<boolean> }) {
+function ListingEditor({ listing, agents, onClose, onSave, onUploadImages }: { listing?: Listing; agents: Agent[]; onClose: () => void; onSave: (draft: ListingDraft, id?: string) => Promise<boolean>; onUploadImages?: (files: File[], slug: string) => Promise<string[]> }) {
   const [saving, setSaving] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState("");
   const [draft, setDraft] = useState<ListingDraft>(() => listing ? toDraft(listing) : emptyDraft(agents[0]?.id));
 
   const set = (key: keyof ListingDraft, value: ListingDraft[keyof ListingDraft]) => setDraft((current) => ({ ...current, [key]: value }));
+  const chooseImages = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const accepted = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    const invalid = files.find((file) => !accepted.includes(file.type) || file.size > 10 * 1024 * 1024);
+    if (invalid) {
+      setUploadError("Use JPEG, PNG, WebP, or AVIF images up to 10 MB each.");
+      event.target.value = "";
+      return;
+    }
+    const available = Math.max(0, 12 - draft.image_urls.length - pendingFiles.length);
+    setPendingFiles((current) => [...current, ...files.slice(0, available)]);
+    setUploadError(files.length > available ? "A listing can contain up to 12 images." : "");
+    event.target.value = "";
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    await onSave({ ...draft, slug: draft.slug || slugify(draft.title || draft.address_line_1) }, listing?.id);
-    setSaving(false);
+    setUploadError("");
+    const slug = draft.slug || slugify(draft.title || draft.address_line_1);
+    try {
+      const uploaded = pendingFiles.length && onUploadImages ? await onUploadImages(pendingFiles, slug) : [];
+      const nextDraft = { ...draft, slug, image_urls: [...draft.image_urls, ...uploaded] };
+      if (uploaded.length) {
+        setDraft(nextDraft);
+        setPendingFiles([]);
+      }
+      await onSave(nextDraft, listing?.id);
+    } catch (uploadFailure) {
+      setUploadError(uploadFailure instanceof Error ? uploadFailure.message : "Unable to upload images.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -311,7 +343,21 @@ function ListingEditor({ listing, agents, onClose, onSave }: { listing?: Listing
             <label>Heating<input value={draft.heating || ""} onChange={(e) => set("heating", e.target.value)} /></label>
             <label>Open house<input value={draft.open_house || ""} onChange={(e) => set("open_house", e.target.value)} placeholder="Optional" /></label>
             <label className="full">Description<textarea rows={4} value={draft.description || ""} onChange={(e) => set("description", e.target.value)} /></label>
-            <label className="full">Hero image URL<input type="url" value={draft.image_urls[0] || ""} onChange={(e) => set("image_urls", e.target.value ? [e.target.value] : [])} /></label>
+            <div className="image-upload full">
+              <div><strong>Property images</strong><small>JPEG, PNG, WebP, or AVIF · 10 MB max · up to 12 images</small></div>
+              <label className="upload-dropzone">
+                <ImagePlus size={24} />
+                <span><strong>Choose images</strong><small>The first image becomes the listing hero.</small></span>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={chooseImages} disabled={!onUploadImages || saving} />
+              </label>
+              {!!draft.image_urls.length && <div className="image-file-list">
+                {draft.image_urls.map((image, index) => <div key={`${image}-${index}`}><span>{index === 0 ? "Hero" : index + 1}</span><small>{image.startsWith("http") ? "Existing image URL" : image.split("/").at(-1)}</small><button type="button" onClick={() => set("image_urls", draft.image_urls.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove image ${index + 1}`}><X size={14} /></button></div>)}
+              </div>}
+              {!!pendingFiles.length && <div className="image-file-list pending">
+                {pendingFiles.map((file, index) => <div key={`${file.name}-${file.lastModified}`}><span>New</span><small>{file.name}</small><button type="button" onClick={() => setPendingFiles((files) => files.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove ${file.name}`}><X size={14} /></button></div>)}
+              </div>}
+              {uploadError && <p className="field-error">{uploadError}</p>}
+            </div>
           </div></section>
           <section><h3>Workflow</h3><div className="form-grid">
             <label>Status<select value={draft.status} onChange={(e) => set("status", e.target.value as ListingStatus)}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -335,10 +381,11 @@ function emptyDraft(agentId?: string): ListingDraft {
 }
 
 function toDraft(listing: Listing): ListingDraft {
-  const { id: _id, created_by: _created, updated_by: _updated, created_at: _createdAt, updated_at: _updatedAt, assigned_agent: _agent, sold_by_agent: _sold, ...draft } = listing;
+  const { id: _id, created_by: _created, updated_by: _updated, created_at: _createdAt, updated_at: _updatedAt, assigned_agent: _agent, sold_by_agent: _sold, display_image_urls: _displayImages, ...draft } = listing;
   return draft;
 }
 
+function listingImage(listing: Listing) { return listing.display_image_urls?.[0] || listing.image_urls[0] || ""; }
 function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 function initials(value: string) { return value.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
 function formatMoney(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value)); }

@@ -12,6 +12,7 @@ import {
 } from "./listings-panel";
 
 type DbClient = SupabaseClient<Database>;
+const LISTING_IMAGE_BUCKET = "listing-images";
 
 export function AuthenticatedPanel() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -46,7 +47,23 @@ export function AuthenticatedPanel() {
     if (listingResult.error || agentResult.error) {
       setError(listingResult.error?.message || agentResult.error?.message || "Unable to load listings.");
     } else {
-      setListings((listingResult.data || []) as unknown as Listing[]);
+      const rawListings = (listingResult.data || []) as unknown as Listing[];
+      const storagePaths = [...new Set(rawListings.flatMap((listing) => listing.image_urls).filter((image) => !isExternalImage(image)))];
+      const signedUrls = new Map<string, string>();
+
+      if (storagePaths.length) {
+        const signedResult = await supabase.storage.from(LISTING_IMAGE_BUCKET).createSignedUrls(storagePaths, 60 * 60);
+        for (const image of signedResult.data || []) {
+          if (image.path && image.signedUrl) signedUrls.set(image.path, image.signedUrl);
+        }
+      }
+
+      setListings(rawListings.map((listing) => ({
+        ...listing,
+        display_image_urls: listing.image_urls
+          .map((image) => isExternalImage(image) ? image : signedUrls.get(image))
+          .filter((image): image is string => Boolean(image)),
+      })));
       setAgents((agentResult.data || []) as Agent[]);
     }
     setLoading(false);
@@ -89,6 +106,38 @@ export function AuthenticatedPanel() {
     return true;
   };
 
+  const uploadImages = async (files: File[], slug: string) => {
+    if (!supabase || !user) throw new Error("Sign in before uploading images.");
+    setError("");
+    const uploadedPaths: string[] = [];
+    const extensionForType: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/avif": "avif",
+    };
+
+    for (const file of files) {
+      const extension = extensionForType[file.type];
+      if (!extension) throw new Error(`${file.name} is not a supported image type.`);
+      const path = `${user.id}/${slug}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from(LISTING_IMAGE_BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+
+      if (uploadError) {
+        if (uploadedPaths.length) await supabase.storage.from(LISTING_IMAGE_BUCKET).remove(uploadedPaths);
+        setError(uploadError.message);
+        throw new Error(uploadError.message);
+      }
+      uploadedPaths.push(path);
+    }
+
+    return uploadedPaths;
+  };
+
   if (!isLoaded) return <PanelLoading />;
   if (!isSignedIn) {
     return (
@@ -114,8 +163,13 @@ export function AuthenticatedPanel() {
       accountSlot={<UserButton />}
       onSave={save}
       onDelete={remove}
+      onUploadImages={uploadImages}
     />
   );
+}
+
+function isExternalImage(value: string) {
+  return /^https?:\/\//i.test(value);
 }
 
 function PanelLoading() {
