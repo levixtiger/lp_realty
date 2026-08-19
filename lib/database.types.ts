@@ -10,8 +10,8 @@ export type Database = {
         Relationships: [];
       };
       listings: {
-        Row: { id: string; slug: string; title: string; address_line_1: string; address_line_2: string | null; city: string; state: string; postal_code: string; property_type: string; asking_price: number; building_area_sqft: number | null; heating: string | null; annual_tax: number | null; common_charge: number | null; description: string | null; open_house: string | null; status: string; assigned_agent_id: string | null; sold_by_agent_id: string | null; sold_at: string | null; image_urls: string[]; source_url: string | null; published: boolean; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
-        Insert: { id?: string; slug: string; title: string; address_line_1: string; address_line_2?: string | null; city: string; state?: string; postal_code: string; property_type: string; asking_price: number; building_area_sqft?: number | null; heating?: string | null; annual_tax?: number | null; common_charge?: number | null; description?: string | null; open_house?: string | null; status?: string; assigned_agent_id?: string | null; sold_by_agent_id?: string | null; sold_at?: string | null; image_urls?: string[]; source_url?: string | null; published?: boolean; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Row: { id: string; slug: string; title: string; address_line_1: string; address_line_2: string | null; city: string; state: string; postal_code: string; property_type: string; offering_type: string; asking_price: number; building_area_sqft: number | null; heating: string | null; annual_tax: number | null; common_charge: number | null; description: string | null; open_house: string | null; status: string; assigned_agent_id: string | null; sold_by_agent_id: string | null; sold_at: string | null; image_urls: string[]; source_url: string | null; published: boolean; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; slug: string; title: string; address_line_1: string; address_line_2?: string | null; city: string; state?: string; postal_code: string; property_type: string; offering_type?: string; asking_price: number; building_area_sqft?: number | null; heating?: string | null; annual_tax?: number | null; common_charge?: number | null; description?: string | null; open_house?: string | null; status?: string; assigned_agent_id?: string | null; sold_by_agent_id?: string | null; sold_at?: string | null; image_urls?: string[]; source_url?: string | null; published?: boolean; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["listings"]["Insert"]>;
         Relationships: [
           { foreignKeyName: "listings_assigned_agent_id_fkey"; columns: ["assigned_agent_id"]; isOneToOne: false; referencedRelation: "agents"; referencedColumns: ["id"] },
@@ -35,6 +35,36 @@ export type Database = {
         Insert: { id?: string; lead_id: string; interaction_type: string; direction?: string; subject?: string | null; notes: string; happened_at?: string; actor_clerk_user_id: string; actor_name?: string | null; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["lead_interactions"]["Insert"]>;
         Relationships: [{ foreignKeyName: "lead_interactions_lead_id_fkey"; columns: ["lead_id"]; isOneToOne: false; referencedRelation: "leads"; referencedColumns: ["id"] }];
+      };
+      open_houses: {
+        Row: { id: string; title: string; subtitle: string | null; date_line: string; status: string; contact_name: string | null; contact_phone: string | null; website_url: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; title: string; subtitle?: string | null; date_line: string; status?: string; contact_name?: string | null; contact_phone?: string | null; website_url?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Update: Partial<Database["public"]["Tables"]["open_houses"]["Insert"]>;
+        Relationships: [];
+      };
+      open_house_items: {
+        Row: { id: string; open_house_id: string; listing_id: string | null; sort_order: number; title: string; address_line_1: string; city: string; state: string; postal_code: string; price: number | null; bedrooms: string | null; bathrooms: string | null; property_type: string | null; image_url: string | null; price_label: string; event_day_label: string; time_label: string; appointment_only: boolean; badge: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; open_house_id: string; listing_id?: string | null; sort_order?: number; title: string; address_line_1: string; city: string; state?: string; postal_code: string; price?: number | null; bedrooms?: string | null; bathrooms?: string | null; property_type?: string | null; image_url?: string | null; price_label?: string; event_day_label?: string; time_label?: string; appointment_only?: boolean; badge?: string | null; created_at?: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["open_house_items"]["Insert"]>;
+        Relationships: [
+          { foreignKeyName: "open_house_items_open_house_id_fkey"; columns: ["open_house_id"]; isOneToOne: false; referencedRelation: "open_houses"; referencedColumns: ["id"] },
+          { foreignKeyName: "open_house_items_listing_id_fkey"; columns: ["listing_id"]; isOneToOne: false; referencedRelation: "listings"; referencedColumns: ["id"] }
+        ];
+      };
+      content_videos: {
+        Row: { id: string; title: string; platform: string; platform_url: string; status: string; listing_id: string | null; agent_id: string | null; published_at: string | null; thumbnail_url: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; title: string; platform?: string; platform_url?: string; status?: string; listing_id?: string | null; agent_id?: string | null; published_at?: string | null; thumbnail_url?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Update: Partial<Database["public"]["Tables"]["content_videos"]["Insert"]>;
+        Relationships: [
+          { foreignKeyName: "content_videos_listing_id_fkey"; columns: ["listing_id"]; isOneToOne: false; referencedRelation: "listings"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_videos_agent_id_fkey"; columns: ["agent_id"]; isOneToOne: false; referencedRelation: "agents"; referencedColumns: ["id"] }
+        ];
+      };
+      content_video_links: {
+        Row: { id: string; content_video_id: string; platform: string; platform_url: string; sort_order: number; created_at: string; updated_at: string };
+        Insert: { id?: string; content_video_id: string; platform: string; platform_url: string; sort_order?: number; created_at?: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["content_video_links"]["Insert"]>;
+        Relationships: [{ foreignKeyName: "content_video_links_content_video_id_fkey"; columns: ["content_video_id"]; isOneToOne: false; referencedRelation: "content_videos"; referencedColumns: ["id"] }];
       };
     };
     Views: { [_ in never]: never };

@@ -69,3 +69,68 @@ test("leads tab persists contacts and employee interaction history", async () =>
   assert.match(migration, /create table public\.lead_interactions/);
   assert.match(migration, /employees_manage_lead_interactions/);
 });
+
+test("listings include sale, rent, and lease offering type", async () => {
+  const [listingPanel, databaseTypes, migration, backfillMigration] = await Promise.all([
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/database.types.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260819114000_add_listing_offering_type.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260819115000_backfill_listing_offering_types.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /ListingOfferingType = "sale" \| "rent" \| "lease"/);
+  assert.match(listingPanel, /Offering type/);
+  assert.match(listingPanel, /label: "Rent"/);
+  assert.match(listingPanel, /label: "Lease"/);
+  assert.match(listingPanel, /inferOfferingType/);
+  assert.doesNotMatch(listingPanel, /For rent|For lease|For sale/);
+  assert.match(databaseTypes, /offering_type: string/);
+  assert.match(migration, /add column if not exists offering_type/);
+  assert.match(migration, /'sale', 'rent', 'lease'/);
+  assert.match(backfillMigration, /asking_price < 100000/);
+  assert.match(backfillMigration, /%commercial%/);
+});
+
+test("OpenHouse tab manages events and poster-ready property cards", async () => {
+  const [openHousesPanel, listingPanel, clerkPanel, migration] = await Promise.all([
+    readFile(new URL("../app/open-houses-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260819110000_add_open_house_management.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /activeView === "openhouses"/);
+  assert.match(listingPanel, /OpenHouse events/);
+  assert.match(openHousesPanel, /Poster preview/);
+  assert.match(openHousesPanel, /OPEN HOUSE/);
+  assert.match(openHousesPanel, /Add from listing/);
+  assert.match(openHousesPanel, /By appointment only/);
+  assert.match(clerkPanel, /from\("open_houses"\)/);
+  assert.match(clerkPanel, /from\("open_house_items"\)/);
+  assert.match(migration, /create table public\.open_houses/);
+  assert.match(migration, /create table public\.open_house_items/);
+  assert.match(migration, /employees_manage_open_house_items/);
+});
+
+test("Content tab tracks video platform links", async () => {
+  const [contentPanel, listingPanel, clerkPanel, migration] = await Promise.all([
+    readFile(new URL("../app/content-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260819120500_add_content_library.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /activeView === "content"/);
+  assert.match(listingPanel, /Content library/);
+  assert.match(contentPanel, /Platform link/);
+  assert.match(contentPanel, /Platform links/);
+  assert.match(contentPanel, /Add platform/);
+  assert.match(contentPanel, /YouTube/);
+  assert.match(contentPanel, /Xiaohongshu/);
+  assert.match(contentPanel, /Related listing/);
+  assert.match(clerkPanel, /from\("content_videos"\)/);
+  assert.match(clerkPanel, /from\("content_video_links"\)/);
+  assert.match(migration, /create table public\.content_videos/);
+  assert.match(migration, /employees_manage_content_videos/);
+  assert.match(await readFile(new URL("../supabase/migrations/20260819122000_add_content_video_links.sql", import.meta.url), "utf8"), /create table if not exists public\.content_video_links/);
+});

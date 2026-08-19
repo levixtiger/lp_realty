@@ -4,12 +4,14 @@ import {
   Archive,
   BarChart3,
   Building2,
+  CalendarDays,
   Check,
   ChevronRight,
   CircleUserRound,
   CircleDollarSign,
   Clock3,
   ExternalLink,
+  Film,
   FileText,
   ImagePlus,
   LayoutDashboard,
@@ -26,7 +28,9 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { AgentsPanel } from "./agents-panel";
+import { ContentPanel, type ContentVideo, type ContentVideoDraft } from "./content-panel";
 import { LeadsPanel, type InteractionDraft, type Lead, type LeadDraft, type LeadInteraction } from "./leads-panel";
+import { OpenHousesPanel, type OpenHouse, type OpenHouseDraft } from "./open-houses-panel";
 
 export type Agent = {
   id: string;
@@ -46,6 +50,7 @@ export type Agent = {
 };
 export type AgentDraft = Pick<Agent, "full_name" | "email" | "phone" | "title" | "bio" | "photo_url" | "license_number" | "languages" | "active">;
 export type ListingStatus = "draft" | "coming_soon" | "active" | "under_contract" | "sold" | "off_market";
+export type ListingOfferingType = "sale" | "rent" | "lease";
 
 export type Listing = {
   id: string;
@@ -57,6 +62,7 @@ export type Listing = {
   state: string;
   postal_code: string;
   property_type: string;
+  offering_type: ListingOfferingType;
   asking_price: number;
   building_area_sqft: number | null;
   heating: string | null;
@@ -89,6 +95,7 @@ export type ListingDraft = {
   state: string;
   postal_code: string;
   property_type: string;
+  offering_type: ListingOfferingType;
   asking_price: number | string;
   building_area_sqft: number | string | null;
   heating: string | null;
@@ -117,7 +124,7 @@ const sampleListings: Listing[] = [
   {
     id: "sample-131-07", slug: "131-07-40th-rd", title: "131-07 40th Rd",
     address_line_1: "131-07 40th Rd", address_line_2: null, city: "Flushing", state: "NY", postal_code: "11354",
-    property_type: "Commercial Office", asking_price: 1680000, building_area_sqft: 1611,
+    property_type: "Commercial Office", offering_type: "lease", asking_price: 1680000, building_area_sqft: 1611,
     heating: "Other", annual_tax: 15600, common_charge: 1200,
     description: "Prime Skyview space in the center of Flushing, steps from the 7 train, buses, LIRR, restaurants, banks, shopping, and major highways. Move-in ready with six treatment rooms, two private offices, and a large reception area.",
     open_house: null, status: "active", assigned_agent_id: sampleAgent.id, sold_by_agent_id: null, sold_at: null,
@@ -132,6 +139,11 @@ const statusOptions: { value: ListingStatus; label: string }[] = [
   { value: "active", label: "Active" }, { value: "under_contract", label: "Under contract" },
   { value: "sold", label: "Sold" }, { value: "off_market", label: "Off market" },
 ];
+const offeringTypeOptions: { value: ListingOfferingType; label: string; priceLabel: string }[] = [
+  { value: "sale", label: "Sale", priceLabel: "Asking price" },
+  { value: "rent", label: "Rent", priceLabel: "Monthly rent" },
+  { value: "lease", label: "Lease", priceLabel: "Lease price" },
+];
 
 type Props = {
   mode: "demo" | "live";
@@ -139,6 +151,8 @@ type Props = {
   initialAgents?: Agent[];
   initialLeads?: Lead[];
   initialLeadInteractions?: LeadInteraction[];
+  initialOpenHouses?: OpenHouse[];
+  initialContentVideos?: ContentVideo[];
   accountSlot?: ReactNode;
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
@@ -149,14 +163,20 @@ type Props = {
   onSaveLead?: (draft: LeadDraft, id?: string) => Promise<boolean>;
   onDeleteLead?: (id: string) => Promise<boolean>;
   onAddLeadInteraction?: (leadId: string, draft: InteractionDraft) => Promise<boolean>;
+  onSaveOpenHouse?: (draft: OpenHouseDraft, id?: string) => Promise<boolean>;
+  onDeleteOpenHouse?: (id: string) => Promise<boolean>;
+  onSaveContentVideo?: (draft: ContentVideoDraft, id?: string) => Promise<boolean>;
+  onDeleteContentVideo?: (id: string) => Promise<boolean>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialContentVideos, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveContentVideo, onDeleteContentVideo }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
   const [leads, setLeads] = useState(initialLeads || []);
   const [leadInteractions, setLeadInteractions] = useState(initialLeadInteractions || []);
-  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads">("listings");
+  const [openHouses, setOpenHouses] = useState(initialOpenHouses || []);
+  const [contentVideos, setContentVideos] = useState(initialContentVideos || []);
+  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "openhouses" | "content">("listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ListingStatus | "all">("all");
@@ -177,10 +197,12 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
 
   useEffect(() => { if (initialLeads) setLeads(initialLeads); }, [initialLeads]);
   useEffect(() => { if (initialLeadInteractions) setLeadInteractions(initialLeadInteractions); }, [initialLeadInteractions]);
+  useEffect(() => { if (initialOpenHouses) setOpenHouses(initialOpenHouses); }, [initialOpenHouses]);
+  useEffect(() => { if (initialContentVideos) setContentVideos(initialContentVideos); }, [initialContentVideos]);
 
   const filtered = useMemo(() => listings.filter((listing) => {
     const matchesFilter = filter === "all" || listing.status === filter;
-    const haystack = `${listing.title} ${listing.city} ${listing.property_type} ${listing.assigned_agent?.full_name || ""}`.toLowerCase();
+    const haystack = `${listing.title} ${listing.city} ${listing.property_type} ${offeringLabel(effectiveOfferingType(listing))} ${listing.assigned_agent?.full_name || ""}`.toLowerCase();
     return matchesFilter && haystack.includes(query.toLowerCase());
   }), [listings, query, filter]);
 
@@ -261,6 +283,41 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
     return true;
   };
 
+  const saveOpenHouse = async (draft: OpenHouseDraft, id?: string) => {
+    if (mode === "live" && onSaveOpenHouse) return onSaveOpenHouse(draft, id);
+    if (id) {
+      setOpenHouses((current) => current.map((event) => event.id === id ? { ...event, ...draft, items: draft.items.map((item, index) => ({ ...item, id: item.id || crypto.randomUUID(), open_house_id: id, sort_order: index, created_at: event.created_at, updated_at: new Date().toISOString() })), updated_at: new Date().toISOString() } : event));
+    } else {
+      const nextId = crypto.randomUUID();
+      setOpenHouses((current) => [{ ...draft, id: nextId, created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), items: draft.items.map((item, index) => ({ ...item, id: item.id || crypto.randomUUID(), open_house_id: nextId, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })) }, ...current]);
+    }
+    return true;
+  };
+
+  const deleteOpenHouse = async (id: string) => {
+    if (mode === "live" && onDeleteOpenHouse) return onDeleteOpenHouse(id);
+    setOpenHouses((current) => current.filter((event) => event.id !== id));
+    return true;
+  };
+
+  const saveContentVideo = async (draft: ContentVideoDraft, id?: string) => {
+    if (mode === "live" && onSaveContentVideo) return onSaveContentVideo(draft, id);
+    const listing = listings.find((item) => item.id === draft.listing_id) || null;
+    const agent = agents.find((item) => item.id === draft.agent_id) || null;
+    if (id) setContentVideos((current) => current.map((video) => video.id === id ? { ...video, ...draft, links: draft.links.map((link, index) => ({ ...link, id: link.id || crypto.randomUUID(), content_video_id: id, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })), listing, agent, updated_at: new Date().toISOString() } : video));
+    else {
+      const nextId = crypto.randomUUID();
+      setContentVideos((current) => [{ ...draft, id: nextId, created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), links: draft.links.map((link, index) => ({ ...link, id: link.id || crypto.randomUUID(), content_video_id: nextId, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })), listing, agent }, ...current]);
+    }
+    return true;
+  };
+
+  const deleteContentVideo = async (id: string) => {
+    if (mode === "live" && onDeleteContentVideo) return onDeleteContentVideo(id);
+    setContentVideos((current) => current.filter((video) => video.id !== id));
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
@@ -270,6 +327,8 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
           <button type="button" className={activeView === "listings" ? "active" : ""} onClick={() => { setActiveView("listings"); setMobileNav(false); }}><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></button>
           <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>
           <button type="button" className={activeView === "leads" ? "active" : ""} onClick={() => { setActiveView("leads"); setMobileNav(false); }}><CircleUserRound size={18} />Leads<span className="nav-count">{leads.length}</span></button>
+          <button type="button" className={activeView === "openhouses" ? "active" : ""} onClick={() => { setActiveView("openhouses"); setMobileNav(false); }}><CalendarDays size={18} />OpenHouse<span className="nav-count">{openHouses.length}</span></button>
+          <button type="button" className={activeView === "content" ? "active" : ""} onClick={() => { setActiveView("content"); setMobileNav(false); }}><Film size={18} />Content<span className="nav-count">{contentVideos.length}</span></button>
           <a href="#"><BarChart3 size={18} />Sales history<span className="soon">Soon</span></a>
           <p>Workspace</p>
           <a href="#"><FileText size={18} />Activity log</a>
@@ -283,7 +342,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : "Leads"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : "Lead management"}</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "openhouses" ? "OpenHouse" : "Content"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "openhouses" ? "OpenHouse events" : "Content library"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
@@ -317,7 +376,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
                 <button key={listing.id} className={`listing-row ${selected?.id === listing.id ? "selected" : ""}`} onClick={() => setSelectedId(listing.id)}>
                   <span className="property-cell">
                     <span className="property-thumb">{listingImage(listing) ? <img src={listingImage(listing)} alt="" /> : <Building2 size={20} />}</span>
-                    <span><strong>{listing.title}</strong><small><MapPin size={12} />{listing.city}, {listing.state} · {listing.property_type}</small></span>
+                    <span><strong>{listing.title}</strong><small><MapPin size={12} />{listing.city}, {listing.state} · {listing.property_type} · {offeringLabel(effectiveOfferingType(listing))}</small></span>
                   </span>
                   <StatusBadge status={listing.status} />
                   <span className="agent-cell"><span className="mini-avatar">{initials(listing.assigned_agent?.full_name || "Unassigned")}</span>{listing.assigned_agent?.full_name || "Unassigned"}</span>
@@ -334,8 +393,9 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
               <div className="detail-image">{listingImage(selected) ? <img src={listingImage(selected)} alt={selected.title} /> : <Building2 size={36} />}<StatusBadge status={selected.status} /></div>
               <div className="detail-body">
                 <div className="detail-title"><div><p>{selected.property_type}</p><h2>{selected.title}</h2><span><MapPin size={14} />{selected.city}, {selected.state} {selected.postal_code}</span></div><button className="icon-button"><MoreHorizontal size={18} /></button></div>
-                <div className="price-block"><span>Asking price</span><strong>{formatMoney(selected.asking_price)}</strong></div>
+                <div className="price-block"><span>{offeringPriceLabel(effectiveOfferingType(selected))}</span><strong>{formatMoney(selected.asking_price)}</strong></div>
                 <div className="facts-grid">
+                  <div><span>Offering type</span><strong>{offeringLabel(effectiveOfferingType(selected))}</strong></div>
                   <div><span>Building area</span><strong>{selected.building_area_sqft?.toLocaleString() || "—"} sq ft</strong></div>
                   <div><span>Annual tax</span><strong>{selected.annual_tax ? formatMoney(selected.annual_tax) : "—"}</strong></div>
                   <div><span>Heating</span><strong>{selected.heating || "—"}</strong></div>
@@ -347,7 +407,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
               </div>
             </aside>
           ) : <aside className="detail-panel empty-detail"><Building2 size={32} /><p>Select a listing to view its details.</p></aside>}
-        </div></> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} />}
+        </div></> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "openhouses" ? <OpenHousesPanel openHouses={openHouses} listings={listings} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} /> : <ContentPanel videos={contentVideos} listings={listings} agents={agents} onSave={saveContentVideo} onDelete={deleteContentVideo} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}
@@ -408,6 +468,7 @@ function ListingEditor({ listing, agents, onClose, onSave, onUploadImages }: { l
             <label>State<input required value={draft.state} maxLength={2} onChange={(e) => set("state", e.target.value.toUpperCase())} /></label>
             <label>ZIP code<input required value={draft.postal_code} onChange={(e) => set("postal_code", e.target.value)} /></label>
             <label>Property type<input required value={draft.property_type} onChange={(e) => set("property_type", e.target.value)} /></label>
+            <label>Offering type<select value={draft.offering_type} onChange={(e) => set("offering_type", e.target.value as ListingOfferingType)}>{offeringTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <label>Asking price<input required type="number" min="0" value={draft.asking_price} onChange={(e) => set("asking_price", e.target.value)} /></label>
             <label>Building area (sq ft)<input type="number" min="0" value={draft.building_area_sqft || ""} onChange={(e) => set("building_area_sqft", e.target.value)} /></label>
             <label>Annual tax<input type="number" min="0" value={draft.annual_tax || ""} onChange={(e) => set("annual_tax", e.target.value)} /></label>
@@ -449,7 +510,7 @@ function StatusBadge({ status }: { status: ListingStatus }) {
 }
 
 function emptyDraft(agentId?: string): ListingDraft {
-  return { slug: "", title: "", address_line_1: "", address_line_2: null, city: "Flushing", state: "NY", postal_code: "", property_type: "Residential", asking_price: "", building_area_sqft: "", heating: "", annual_tax: "", common_charge: "", description: "", open_house: "", status: "draft", assigned_agent_id: agentId || null, sold_by_agent_id: null, sold_at: null, image_urls: [], source_url: null, published: false };
+  return { slug: "", title: "", address_line_1: "", address_line_2: null, city: "Flushing", state: "NY", postal_code: "", property_type: "Residential", offering_type: "sale", asking_price: "", building_area_sqft: "", heating: "", annual_tax: "", common_charge: "", description: "", open_house: "", status: "draft", assigned_agent_id: agentId || null, sold_by_agent_id: null, sold_at: null, image_urls: [], source_url: null, published: false };
 }
 
 function toDraft(listing: Listing): ListingDraft {
@@ -460,5 +521,13 @@ function toDraft(listing: Listing): ListingDraft {
 function listingImage(listing: Listing) { return listing.display_image_urls?.[0] || listing.image_urls[0] || ""; }
 function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 function initials(value: string) { return value.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
+function inferOfferingType(listing: Pick<Listing, "property_type" | "asking_price">): ListingOfferingType {
+  return listing.property_type.toLowerCase().includes("commercial") ? "lease" : Number(listing.asking_price) < 100000 ? "rent" : "sale";
+}
+function effectiveOfferingType(listing: Pick<Listing, "property_type" | "asking_price"> & { offering_type?: ListingOfferingType | null }) {
+  return listing.offering_type || inferOfferingType(listing);
+}
+function offeringLabel(type?: ListingOfferingType | null) { return offeringTypeOptions.find((option) => option.value === type)?.label || "Sale"; }
+function offeringPriceLabel(type?: ListingOfferingType | null) { return offeringTypeOptions.find((option) => option.value === type)?.priceLabel || "Asking price"; }
 function formatMoney(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value)); }
 function formatCompact(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(value); }

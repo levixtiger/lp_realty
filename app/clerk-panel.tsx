@@ -11,7 +11,9 @@ import {
   type Listing,
   type ListingDraft,
 } from "./listings-panel";
+import type { ContentVideo, ContentVideoDraft } from "./content-panel";
 import type { InteractionDraft, Lead, LeadDraft, LeadInteraction } from "./leads-panel";
+import type { OpenHouse, OpenHouseDraft } from "./open-houses-panel";
 
 type DbClient = SupabaseClient<Database>;
 const LISTING_IMAGE_BUCKET = "listing-images";
@@ -24,6 +26,8 @@ export function AuthenticatedPanel() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadInteractions, setLeadInteractions] = useState<LeadInteraction[]>([]);
+  const [openHouses, setOpenHouses] = useState<OpenHouse[]>([]);
+  const [contentVideos, setContentVideos] = useState<ContentVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,7 +43,7 @@ export function AuthenticatedPanel() {
   const load = useCallback(async () => {
     if (!supabase) return;
     setError("");
-    const [listingResult, agentResult, leadResult, interactionResult] = await Promise.all([
+    const [listingResult, agentResult, leadResult, interactionResult, openHouseResult, contentResult] = await Promise.all([
       supabase
         .from("listings")
         .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)")
@@ -48,11 +52,18 @@ export function AuthenticatedPanel() {
       supabase.from("agents").select("id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at").eq("active", true).order("full_name"),
       supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)").is("deleted_at", null).order("updated_at", { ascending: false }),
       supabase.from("lead_interactions").select("*").order("happened_at", { ascending: false }),
+      supabase.from("open_houses").select("*, items:open_house_items(*)").is("deleted_at", null).order("updated_at", { ascending: false }),
+      supabase.from("content_videos").select("*, links:content_video_links(*), listing:listings(id,slug,title,address_line_1,address_line_2,city,state,postal_code,property_type,offering_type,asking_price,building_area_sqft,heating,annual_tax,common_charge,description,open_house,status,assigned_agent_id,sold_by_agent_id,sold_at,image_urls,source_url,published,created_by,updated_by,created_at,updated_at,deleted_at), agent:agents(id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at)").is("deleted_at", null).order("updated_at", { ascending: false }),
     ]);
 
-    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error) {
-      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || "Unable to load workspace data.");
+    const openHouseDatabasePending = Boolean(openHouseResult.error?.message?.includes("open_houses") || openHouseResult.error?.message?.includes("open_house_items"));
+    const contentDatabasePending = Boolean(contentResult.error?.message?.includes("content_videos") || contentResult.error?.message?.includes("content_video_links"));
+
+    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error || (openHouseResult.error && !openHouseDatabasePending) || (contentResult.error && !contentDatabasePending)) {
+      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || openHouseResult.error?.message || contentResult.error?.message || "Unable to load workspace data.");
     } else {
+      if (openHouseDatabasePending) setError("OpenHouse database migration is ready but has not been applied to Supabase yet.");
+      if (contentDatabasePending) setError("Content database migration is ready but has not been applied to Supabase yet.");
       const rawListings = (listingResult.data || []) as unknown as Listing[];
       const storagePaths = [...new Set(rawListings.flatMap((listing) => listing.image_urls).filter((image) => !isExternalImage(image)))];
       const signedUrls = new Map<string, string>();
@@ -70,6 +81,15 @@ export function AuthenticatedPanel() {
           .map((image) => isExternalImage(image) ? image : signedUrls.get(image))
           .filter((image): image is string => Boolean(image)),
       })));
+      const rawOpenHouses = openHouseDatabasePending ? [] : (openHouseResult.data || []) as unknown as OpenHouse[];
+      const openHouseImagePaths = [...new Set(rawOpenHouses.flatMap((event) => event.items || []).map((item) => item.image_url).filter((image): image is string => Boolean(image) && !isExternalImage(image)))];
+      const openHouseImageUrls = new Map<string, string>();
+      if (openHouseImagePaths.length) {
+        const signedResult = await supabase.storage.from(LISTING_IMAGE_BUCKET).createSignedUrls(openHouseImagePaths, 60 * 60);
+        for (const image of signedResult.data || []) {
+          if (image.path && image.signedUrl) openHouseImageUrls.set(image.path, image.signedUrl);
+        }
+      }
       const rawAgents = (agentResult.data || []) as Agent[];
       const agentPhotoPaths = [...new Set(rawAgents.map((agent) => agent.photo_url).filter((photo): photo is string => Boolean(photo) && !isExternalImage(photo!)))];
       const agentPhotoUrls = new Map<string, string>();
@@ -85,6 +105,17 @@ export function AuthenticatedPanel() {
       })));
       setLeads((leadResult.data || []) as unknown as Lead[]);
       setLeadInteractions((interactionResult.data || []) as unknown as LeadInteraction[]);
+      setOpenHouses(rawOpenHouses.map((event) => ({
+        ...event,
+        items: (event.items || [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((item) => ({ ...item, display_image_url: item.image_url ? (isExternalImage(item.image_url) ? item.image_url : openHouseImageUrls.get(item.image_url) || null) : null })),
+      })));
+      setContentVideos(contentDatabasePending ? [] : ((contentResult.data || []) as unknown as ContentVideo[]).map((video) => ({
+        ...video,
+        links: (video.links || []).slice().sort((a, b) => a.sort_order - b.sort_order),
+      })));
     }
     setLoading(false);
   }, [supabase]);
@@ -219,6 +250,85 @@ export function AuthenticatedPanel() {
     return true;
   };
 
+  const saveOpenHouse = async (draft: OpenHouseDraft, id?: string) => {
+    if (!supabase || !user) return false;
+    const { items, ...eventDraft } = draft;
+    const payload = { ...eventDraft, subtitle: eventDraft.subtitle || null, contact_name: eventDraft.contact_name || null, contact_phone: eventDraft.contact_phone || null, website_url: eventDraft.website_url || null, notes: eventDraft.notes || null, updated_by: user.id };
+    const eventResult = id
+      ? await supabase.from("open_houses").update(payload).eq("id", id).select("id").single()
+      : await supabase.from("open_houses").insert({ ...payload, created_by: user.id }).select("id").single();
+    if (eventResult.error) { setError(eventResult.error.message); return false; }
+    const openHouseId = eventResult.data.id;
+    const deleteResult = await supabase.from("open_house_items").delete().eq("open_house_id", openHouseId);
+    if (deleteResult.error) { setError(deleteResult.error.message); return false; }
+    if (items.length) {
+      const insertResult = await supabase.from("open_house_items").insert(items.map((item, index) => ({
+        open_house_id: openHouseId,
+        listing_id: item.listing_id || null,
+        sort_order: index,
+        title: item.title,
+        address_line_1: item.address_line_1,
+        city: item.city,
+        state: item.state,
+        postal_code: item.postal_code,
+        price: item.price,
+        bedrooms: item.bedrooms || null,
+        bathrooms: item.bathrooms || null,
+        property_type: item.property_type || null,
+        image_url: item.image_url || null,
+        price_label: item.price_label || "Offered at",
+        event_day_label: item.event_day_label || "SUN",
+        time_label: item.time_label || "1-3",
+        appointment_only: item.appointment_only,
+        badge: item.badge || null,
+      })));
+      if (insertResult.error) { setError(insertResult.error.message); return false; }
+    }
+    await load();
+    return true;
+  };
+
+  const deleteOpenHouse = async (id: string) => {
+    if (!supabase || !user) return false;
+    const { error: deleteError } = await supabase.from("open_houses").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", id);
+    if (deleteError) { setError(deleteError.message); return false; }
+    await load();
+    return true;
+  };
+
+  const saveContentVideo = async (draft: ContentVideoDraft, id?: string) => {
+    if (!supabase || !user) return false;
+    const { links, ...videoDraft } = draft;
+    const payload = { ...videoDraft, listing_id: videoDraft.listing_id || null, agent_id: videoDraft.agent_id || null, published_at: videoDraft.published_at || null, thumbnail_url: videoDraft.thumbnail_url || null, notes: videoDraft.notes || null, updated_by: user.id };
+    const videoResult = id
+      ? await supabase.from("content_videos").update(payload).eq("id", id).select("id").single()
+      : await supabase.from("content_videos").insert({ ...payload, created_by: user.id }).select("id").single();
+    if (videoResult.error) { setError(videoResult.error.message); return false; }
+    const contentVideoId = videoResult.data.id;
+    const deleteResult = await supabase.from("content_video_links").delete().eq("content_video_id", contentVideoId);
+    if (deleteResult.error) { setError(deleteResult.error.message); return false; }
+    const cleanedLinks = links.filter((link) => link.platform_url.trim());
+    if (cleanedLinks.length) {
+      const insertResult = await supabase.from("content_video_links").insert(cleanedLinks.map((link, index) => ({
+        content_video_id: contentVideoId,
+        platform: link.platform,
+        platform_url: link.platform_url.trim(),
+        sort_order: index,
+      })));
+      if (insertResult.error) { setError(insertResult.error.message); return false; }
+    }
+    await load();
+    return true;
+  };
+
+  const deleteContentVideo = async (id: string) => {
+    if (!supabase || !user) return false;
+    const { error: deleteError } = await supabase.from("content_videos").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", id);
+    if (deleteError) { setError(deleteError.message); return false; }
+    await load();
+    return true;
+  };
+
   if (!isLoaded) return <PanelLoading />;
   if (!isSignedIn) {
     return (
@@ -241,6 +351,8 @@ export function AuthenticatedPanel() {
       initialAgents={agents}
       initialLeads={leads}
       initialLeadInteractions={leadInteractions}
+      initialOpenHouses={openHouses}
+      initialContentVideos={contentVideos}
       error={error}
       accountSlot={<UserButton />}
       onSave={save}
@@ -251,6 +363,10 @@ export function AuthenticatedPanel() {
       onSaveLead={saveLead}
       onDeleteLead={deleteLead}
       onAddLeadInteraction={addLeadInteraction}
+      onSaveOpenHouse={saveOpenHouse}
+      onDeleteOpenHouse={deleteOpenHouse}
+      onSaveContentVideo={saveContentVideo}
+      onDeleteContentVideo={deleteContentVideo}
     />
   );
 }
