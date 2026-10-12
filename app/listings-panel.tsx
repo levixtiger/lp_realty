@@ -2,19 +2,14 @@
 
 import {
   Archive,
-  BarChart3,
   Building2,
-  CalendarDays,
   Check,
   ChevronRight,
   CircleUserRound,
   CircleDollarSign,
   Clock3,
   ExternalLink,
-  Film,
-  FileText,
   ImagePlus,
-  LayoutDashboard,
   MapPin,
   Menu,
   MoreHorizontal,
@@ -27,8 +22,10 @@ import {
   X,
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { AccountingPanel, type AccountingAccessRole, type AccountingClosing, type AccountingClosingDraft, type AccountingPayee, type AccountingPayeeDraft, type AccountingRule, type AccountingRuleDraft } from "./accounting-panel";
 import { AgentsPanel } from "./agents-panel";
-import { ContentPanel, type ContentVideo, type ContentVideoDraft } from "./content-panel";
+import type { AccessRequest } from "./clerk-panel";
+import type { ContentAccount, ContentAccountDraft, ContentVideo, ContentVideoDraft } from "./content-panel";
 import { LeadsPanel, type InteractionDraft, type Lead, type LeadDraft, type LeadInteraction } from "./leads-panel";
 import { OpenHousesPanel, type OpenHouse, type OpenHouseDraft } from "./open-houses-panel";
 
@@ -49,7 +46,7 @@ export type Agent = {
   updated_at?: string;
 };
 export type AgentDraft = Pick<Agent, "full_name" | "email" | "phone" | "title" | "bio" | "photo_url" | "license_number" | "languages" | "active">;
-export type ListingStatus = "draft" | "coming_soon" | "active" | "under_contract" | "sold" | "off_market";
+export type ListingStatus = "active" | "pending" | "closed" | "off_market";
 export type ListingOfferingType = "sale" | "rent" | "lease";
 
 export type Listing = {
@@ -135,9 +132,10 @@ const sampleListings: Listing[] = [
 ];
 
 const statusOptions: { value: ListingStatus; label: string }[] = [
-  { value: "draft", label: "Draft" }, { value: "coming_soon", label: "Coming soon" },
-  { value: "active", label: "Active" }, { value: "under_contract", label: "Under contract" },
-  { value: "sold", label: "Sold" }, { value: "off_market", label: "Off market" },
+  { value: "active", label: "Active" },
+  { value: "pending", label: "Pending" },
+  { value: "closed", label: "Closed" },
+  { value: "off_market", label: "Off-market" },
 ];
 const offeringTypeOptions: { value: ListingOfferingType; label: string; priceLabel: string }[] = [
   { value: "sale", label: "Sale", priceLabel: "Asking price" },
@@ -153,6 +151,12 @@ type Props = {
   initialLeadInteractions?: LeadInteraction[];
   initialOpenHouses?: OpenHouse[];
   initialContentVideos?: ContentVideo[];
+  initialContentAccounts?: ContentAccount[];
+  initialAccountingClosings?: AccountingClosing[];
+  initialAccountingRules?: AccountingRule[];
+  initialAccountingPayees?: AccountingPayee[];
+  initialAccessRequests?: AccessRequest[];
+  accountingAccessRole?: AccountingAccessRole;
   accountSlot?: ReactNode;
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
@@ -167,22 +171,45 @@ type Props = {
   onDeleteOpenHouse?: (id: string) => Promise<boolean>;
   onSaveContentVideo?: (draft: ContentVideoDraft, id?: string) => Promise<boolean>;
   onDeleteContentVideo?: (id: string) => Promise<boolean>;
+  onSaveContentAccount?: (draft: ContentAccountDraft, id?: string) => Promise<boolean>;
+  onDeleteContentAccount?: (id: string) => Promise<boolean>;
+  onSaveAccountingClosing?: (draft: AccountingClosingDraft, id?: string) => Promise<boolean>;
+  onDeleteAccountingClosing?: (id: string) => Promise<boolean>;
+  onSaveAccountingRule?: (draft: AccountingRuleDraft, id?: string) => Promise<boolean>;
+  onDeleteAccountingRule?: (id: string) => Promise<boolean>;
+  onSaveAccountingPayee?: (draft: AccountingPayeeDraft, id?: string) => Promise<boolean>;
+  onDeleteAccountingPayee?: (id: string) => Promise<boolean>;
+  onUploadAccountingDocument?: (file: File) => Promise<string>;
+  onReviewAccessRequest?: (request: AccessRequest, status: "approved" | "rejected", approvedRole: "agent" | "operator" | null) => Promise<boolean>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialContentVideos, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveContentVideo, onDeleteContentVideo }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialContentVideos, initialContentAccounts, initialAccountingClosings, initialAccountingRules, initialAccountingPayees, initialAccessRequests, accountingAccessRole = "manager", accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveContentVideo, onDeleteContentVideo, onSaveContentAccount, onDeleteContentAccount, onSaveAccountingClosing, onDeleteAccountingClosing, onSaveAccountingRule, onDeleteAccountingRule, onSaveAccountingPayee, onDeleteAccountingPayee, onUploadAccountingDocument, onReviewAccessRequest }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
   const [leads, setLeads] = useState(initialLeads || []);
   const [leadInteractions, setLeadInteractions] = useState(initialLeadInteractions || []);
   const [openHouses, setOpenHouses] = useState(initialOpenHouses || []);
   const [contentVideos, setContentVideos] = useState(initialContentVideos || []);
-  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "openhouses" | "content">("listings");
+  const [contentAccounts, setContentAccounts] = useState(initialContentAccounts || []);
+  const [accountingClosings, setAccountingClosings] = useState(initialAccountingClosings || []);
+  const [accountingRules, setAccountingRules] = useState(initialAccountingRules || []);
+  const [accountingPayees, setAccountingPayees] = useState(initialAccountingPayees || []);
+  const [accessRequests, setAccessRequests] = useState(initialAccessRequests || []);
+  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "accounting" | "access">("listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
+  const [listingDetailOpen, setListingDetailOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ListingStatus | "all">("all");
   const [editor, setEditor] = useState<Listing | "new" | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [notice, setNotice] = useState("");
+  const isAgentAccess = accountingAccessRole === "agent";
+  const isManagerAccess = accountingAccessRole === "manager";
+  const canViewAgents = accountingAccessRole === "manager" || accountingAccessRole === "operator";
+
+  useEffect(() => {
+    if ((!canViewAgents && activeView === "agents") || (isAgentAccess && activeView === "access") || (!isManagerAccess && activeView === "access")) setActiveView("listings");
+  }, [activeView, canViewAgents, isAgentAccess, isManagerAccess]);
 
   useEffect(() => {
     if (initialListings) {
@@ -199,6 +226,11 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
   useEffect(() => { if (initialLeadInteractions) setLeadInteractions(initialLeadInteractions); }, [initialLeadInteractions]);
   useEffect(() => { if (initialOpenHouses) setOpenHouses(initialOpenHouses); }, [initialOpenHouses]);
   useEffect(() => { if (initialContentVideos) setContentVideos(initialContentVideos); }, [initialContentVideos]);
+  useEffect(() => { if (initialContentAccounts) setContentAccounts(initialContentAccounts); }, [initialContentAccounts]);
+  useEffect(() => { if (initialAccountingClosings) setAccountingClosings(initialAccountingClosings); }, [initialAccountingClosings]);
+  useEffect(() => { if (initialAccountingRules) setAccountingRules(initialAccountingRules); }, [initialAccountingRules]);
+  useEffect(() => { if (initialAccountingPayees) setAccountingPayees(initialAccountingPayees); }, [initialAccountingPayees]);
+  useEffect(() => { if (initialAccessRequests) setAccessRequests(initialAccessRequests); }, [initialAccessRequests]);
 
   const filtered = useMemo(() => listings.filter((listing) => {
     const matchesFilter = filter === "all" || listing.status === filter;
@@ -208,7 +240,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
 
   const selected = listings.find((listing) => listing.id === selectedId) || filtered[0];
   const activeCount = listings.filter((item) => item.status === "active").length;
-  const contractCount = listings.filter((item) => item.status === "under_contract").length;
+  const pendingCount = listings.filter((item) => item.status === "pending").length;
 
   const saveListing = async (draft: ListingDraft, id?: string) => {
     if (mode === "live" && onSave) {
@@ -318,21 +350,71 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
     return true;
   };
 
+  const saveContentAccount = async (draft: ContentAccountDraft, id?: string) => {
+    if (mode === "live" && onSaveContentAccount) return onSaveContentAccount(draft, id);
+    if (id) setContentAccounts((current) => current.map((account) => account.id === id ? { ...account, ...draft, updated_at: new Date().toISOString() } : account));
+    else setContentAccounts((current) => [{ ...draft, id: crypto.randomUUID(), created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...current]);
+    return true;
+  };
+
+  const deleteContentAccount = async (id: string) => {
+    if (mode === "live" && onDeleteContentAccount) return onDeleteContentAccount(id);
+    setContentAccounts((current) => current.filter((account) => account.id !== id));
+    return true;
+  };
+
+  const saveAccountingClosing = async (draft: AccountingClosingDraft, id?: string) => {
+    if (mode === "live" && onSaveAccountingClosing) return onSaveAccountingClosing(draft, id);
+    if (id) setAccountingClosings((current) => current.map((closing) => closing.id === id ? { ...closing, ...draft, allocations: draft.allocations.map((allocation, index) => ({ ...allocation, id: allocation.id || crypto.randomUUID(), closing_id: id, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })), updated_at: new Date().toISOString(), audit_entries: [{ id: crypto.randomUUID(), closing_id: id, actor_clerk_user_id: "preview", actor_name: "Preview user", action: "Updated closing", details: "Preview accounting update", created_at: new Date().toISOString() }, ...closing.audit_entries] } : closing));
+    else {
+      const nextId = crypto.randomUUID();
+      setAccountingClosings((current) => [{ ...draft, id: nextId, created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), allocations: draft.allocations.map((allocation, index) => ({ ...allocation, id: allocation.id || crypto.randomUUID(), closing_id: nextId, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })), audit_entries: [{ id: crypto.randomUUID(), closing_id: nextId, actor_clerk_user_id: "preview", actor_name: "Preview user", action: "Created closing", details: "Preview closing file created", created_at: new Date().toISOString() }] }, ...current]);
+    }
+    return true;
+  };
+
+  const deleteAccountingClosing = async (id: string) => {
+    if (mode === "live" && onDeleteAccountingClosing) return onDeleteAccountingClosing(id);
+    setAccountingClosings((current) => current.filter((closing) => closing.id !== id));
+    return true;
+  };
+
+  const saveAccountingRule = async (draft: AccountingRuleDraft, id?: string) => {
+    if (mode === "live" && onSaveAccountingRule) return onSaveAccountingRule(draft, id);
+    if (id) setAccountingRules((current) => current.map((rule) => rule.id === id ? { ...rule, ...draft, updated_at: new Date().toISOString() } : rule));
+    else setAccountingRules((current) => [{ ...draft, id: crypto.randomUUID(), created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...current]);
+    return true;
+  };
+
+  const deleteAccountingRule = async (id: string) => {
+    if (mode === "live" && onDeleteAccountingRule) return onDeleteAccountingRule(id);
+    setAccountingRules((current) => current.filter((rule) => rule.id !== id));
+    return true;
+  };
+
+  const saveAccountingPayee = async (draft: AccountingPayeeDraft, id?: string) => {
+    if (mode === "live" && onSaveAccountingPayee) return onSaveAccountingPayee(draft, id);
+    if (id) setAccountingPayees((current) => current.map((payee) => payee.id === id ? { ...payee, ...draft, updated_at: new Date().toISOString() } : payee));
+    else setAccountingPayees((current) => [{ ...draft, id: crypto.randomUUID(), created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...current]);
+    return true;
+  };
+
+  const deleteAccountingPayee = async (id: string) => {
+    if (mode === "live" && onDeleteAccountingPayee) return onDeleteAccountingPayee(id);
+    setAccountingPayees((current) => current.filter((payee) => payee.id !== id));
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
         <div className="brand"><img className="brand-logo" src="/lin-pan-logo.png" alt="Lin Pan International Realty" /></div>
         <nav>
-          <a href="#"><LayoutDashboard size={18} />Overview</a>
           <button type="button" className={activeView === "listings" ? "active" : ""} onClick={() => { setActiveView("listings"); setMobileNav(false); }}><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></button>
-          <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>
+          {canViewAgents && <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>}
           <button type="button" className={activeView === "leads" ? "active" : ""} onClick={() => { setActiveView("leads"); setMobileNav(false); }}><CircleUserRound size={18} />Leads<span className="nav-count">{leads.length}</span></button>
-          <button type="button" className={activeView === "openhouses" ? "active" : ""} onClick={() => { setActiveView("openhouses"); setMobileNav(false); }}><CalendarDays size={18} />OpenHouse<span className="nav-count">{openHouses.length}</span></button>
-          <button type="button" className={activeView === "content" ? "active" : ""} onClick={() => { setActiveView("content"); setMobileNav(false); }}><Film size={18} />Content<span className="nav-count">{contentVideos.length}</span></button>
-          <a href="#"><BarChart3 size={18} />Sales history<span className="soon">Soon</span></a>
-          <p>Workspace</p>
-          <a href="#"><FileText size={18} />Activity log</a>
-          <a href="#"><Settings size={18} />Settings</a>
+          <button type="button" className={activeView === "accounting" ? "active" : ""} onClick={() => { setActiveView("accounting"); setMobileNav(false); }}><CircleDollarSign size={18} />Accounting<span className="nav-count">{accountingClosings.length}</span></button>
+          {isManagerAccess && <button type="button" className={activeView === "access" ? "active" : ""} onClick={() => { setActiveView("access"); setMobileNav(false); }}><Settings size={18} />Access<span className="nav-count">{accessRequests.filter((request) => request.status === "pending").length}</span></button>}
         </nav>
         <div className="sidebar-footer"><span>Official website</span><a href="https://linpanrealty.com" target="_blank" rel="noreferrer">linpanrealty.com <ExternalLink size={13} /></a></div>
       </aside>
@@ -342,7 +424,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "openhouses" ? "OpenHouse" : "Content"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "openhouses" ? "OpenHouse events" : "Content library"}</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "access" ? "Access" : "Accounting"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "access" ? "Access requests" : "Accounting"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
@@ -357,7 +439,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
         {activeView === "listings" ? <><div className="metrics-row">
           <div className="metric"><span>Total inventory</span><strong>{listings.length}</strong><small>All current listings</small></div>
           <div className="metric"><span>Active</span><strong>{activeCount}</strong><small><i className="dot green" />Live on website</small></div>
-          <div className="metric"><span>Under contract</span><strong>{contractCount}</strong><small><i className="dot amber" />Pending closing</small></div>
+          <div className="metric"><span>Pending</span><strong>{pendingCount}</strong><small><i className="dot amber" />Pending closing</small></div>
           <div className="metric value"><span>Active asking value</span><strong>{formatCompact(listings.filter((item) => item.status === "active").reduce((sum, item) => sum + Number(item.asking_price), 0))}</strong><small>Across active inventory</small></div>
         </div>
 
@@ -373,7 +455,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
             <div className="list-header"><span>Property</span><span>Status</span><span>Agent</span><span>Price</span><span /></div>
             <div className="listing-rows">
               {filtered.map((listing) => (
-                <button key={listing.id} className={`listing-row ${selected?.id === listing.id ? "selected" : ""}`} onClick={() => setSelectedId(listing.id)}>
+                <button key={listing.id} className={`listing-row ${selected?.id === listing.id ? "selected" : ""}`} onClick={() => { setSelectedId(listing.id); setListingDetailOpen(true); }}>
                   <span className="property-cell">
                     <span className="property-thumb">{listingImage(listing) ? <img src={listingImage(listing)} alt="" /> : <Building2 size={20} />}</span>
                     <span><strong>{listing.title}</strong><small><MapPin size={12} />{listing.city}, {listing.state} · {listing.property_type} · {offeringLabel(effectiveOfferingType(listing))}</small></span>
@@ -389,7 +471,8 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
           </section>
 
           {selected ? (
-            <aside className="detail-panel">
+            <aside className={`detail-panel mobile-detail ${listingDetailOpen ? "mobile-detail-open" : ""}`}>
+              <button className="mobile-detail-close" onClick={() => setListingDetailOpen(false)} aria-label="Close listing details"><X size={18} /></button>
               <div className="detail-image">{listingImage(selected) ? <img src={listingImage(selected)} alt={selected.title} /> : <Building2 size={36} />}<StatusBadge status={selected.status} /></div>
               <div className="detail-body">
                 <div className="detail-title"><div><p>{selected.property_type}</p><h2>{selected.title}</h2><span><MapPin size={14} />{selected.city}, {selected.state} {selected.postal_code}</span></div><button className="icon-button"><MoreHorizontal size={18} /></button></div>
@@ -407,11 +490,59 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
               </div>
             </aside>
           ) : <aside className="detail-panel empty-detail"><Building2 size={32} /><p>Select a listing to view its details.</p></aside>}
-        </div></> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "openhouses" ? <OpenHousesPanel openHouses={openHouses} listings={listings} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} /> : <ContentPanel videos={contentVideos} listings={listings} agents={agents} onSave={saveContentVideo} onDelete={deleteContentVideo} onNotice={setNotice} />}
+        </div>
+
+        {!isAgentAccess && <section className="embedded-openhouses">
+          <div className="embedded-section-head"><p className="eyebrow">Listing marketing</p><h2>OpenHouse events</h2><span>Create poster-ready open house events from listing inventory.</span></div>
+          <OpenHousesPanel openHouses={openHouses} listings={listings} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} />
+        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}
     </main>
+  );
+}
+
+function AccessRequestsPanel({ requests, onReview, onNotice }: { requests: AccessRequest[]; onReview?: (request: AccessRequest, status: "approved" | "rejected", approvedRole: "agent" | "operator" | null) => Promise<boolean>; onNotice: (message: string) => void }) {
+  const [reviewingId, setReviewingId] = useState("");
+  const sorted = useMemo(() => requests.slice().sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [requests]);
+  const review = async (request: AccessRequest, status: "approved" | "rejected", role: "agent" | "operator" | null) => {
+    if (!onReview) return;
+    setReviewingId(`${request.id}-${status}-${role || "none"}`);
+    const ok = await onReview(request, status, role);
+    if (ok) onNotice(status === "approved" ? "Access request approved" : "Access request rejected");
+    setReviewingId("");
+  };
+
+  return (
+    <section className="access-card">
+      <header>
+        <div><p className="eyebrow">Manager review</p><h2>Access requests</h2><span>Approve employees before they can see internal data.</span></div>
+      </header>
+      <div className="access-request-list">
+        {sorted.map((request) => (
+          <article key={request.id} className={`access-request-row ${request.status}`}>
+            <div>
+              <strong>{request.full_name}</strong>
+              <small>{request.email || "No email"} · {request.phone}</small>
+              <span>{request.requested_role === "agent" ? `Agent request${request.requested_agent_name ? ` for ${request.requested_agent_name}` : ""}` : "Non-agent operator request"}</span>
+              {request.notes && <p>{request.notes}</p>}
+            </div>
+            <span className={`access-status ${request.status}`}>{request.status.replace("_", " ")}</span>
+            <div className="access-request-actions">
+              {request.status === "pending" ? (
+                <>
+                  <button disabled={Boolean(reviewingId)} onClick={() => void review(request, "approved", "operator")}>Approve operator</button>
+                  {request.requested_agent_id && <button disabled={Boolean(reviewingId)} onClick={() => void review(request, "approved", "agent")}>Approve agent</button>}
+                  <button disabled={Boolean(reviewingId)} onClick={() => void review(request, "rejected", null)}>Reject</button>
+                </>
+              ) : <small>{request.status === "approved" ? `Approved as ${request.approved_role}` : "Rejected"}</small>}
+            </div>
+          </article>
+        ))}
+        {!sorted.length && <div className="empty-state"><Users size={28} /><strong>No access requests</strong><span>New onboarding requests will appear here.</span></div>}
+      </div>
+    </section>
   );
 }
 
@@ -495,7 +626,7 @@ function ListingEditor({ listing, agents, onClose, onSave, onUploadImages }: { l
           <section><h3>Workflow</h3><div className="form-grid">
             <label>Status<select value={draft.status} onChange={(e) => set("status", e.target.value as ListingStatus)}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <label>Listing agent<select value={draft.assigned_agent_id || ""} onChange={(e) => set("assigned_agent_id", e.target.value || null)}><option value="">Unassigned</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label>
-            {draft.status === "sold" && <><label>Sold by agent<select required value={draft.sold_by_agent_id || ""} onChange={(e) => set("sold_by_agent_id", e.target.value || null)}><option value="">Select agent</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label><label>Sold date<input required type="date" value={draft.sold_at || ""} onChange={(e) => set("sold_at", e.target.value)} /></label></>}
+            {draft.status === "closed" && <><label>Closed by agent<select required value={draft.sold_by_agent_id || ""} onChange={(e) => set("sold_by_agent_id", e.target.value || null)}><option value="">Select agent</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label><label>Closed date<input required type="date" value={draft.sold_at || ""} onChange={(e) => set("sold_at", e.target.value)} /></label></>}
             <label className="checkbox-row full"><input type="checkbox" checked={draft.published} onChange={(e) => set("published", e.target.checked)} /><span><strong>Publish to official website</strong><small>Make this listing available to the public-site sync.</small></span></label>
           </div></section>
         </div>
@@ -510,7 +641,7 @@ function StatusBadge({ status }: { status: ListingStatus }) {
 }
 
 function emptyDraft(agentId?: string): ListingDraft {
-  return { slug: "", title: "", address_line_1: "", address_line_2: null, city: "Flushing", state: "NY", postal_code: "", property_type: "Residential", offering_type: "sale", asking_price: "", building_area_sqft: "", heating: "", annual_tax: "", common_charge: "", description: "", open_house: "", status: "draft", assigned_agent_id: agentId || null, sold_by_agent_id: null, sold_at: null, image_urls: [], source_url: null, published: false };
+  return { slug: "", title: "", address_line_1: "", address_line_2: null, city: "Flushing", state: "NY", postal_code: "", property_type: "Residential", offering_type: "sale", asking_price: "", building_area_sqft: "", heating: "", annual_tax: "", common_charge: "", description: "", open_house: "", status: "active", assigned_agent_id: agentId || null, sold_by_agent_id: null, sold_at: null, image_urls: [], source_url: null, published: false };
 }
 
 function toDraft(listing: Listing): ListingDraft {

@@ -23,7 +23,7 @@ export function AgentsPanel({ agents, listings, onSave, onUploadPhoto, onNotice 
   }), [agents, query]);
   const selected = agents.find((agent) => agent.id === selectedId) || filtered[0];
   const soldListings = selected
-    ? listings.filter((listing) => listing.status === "sold" && listing.sold_by_agent_id === selected.id)
+    ? listings.filter((listing) => listing.status === "closed" && listing.sold_by_agent_id === selected.id)
       .sort((a, b) => (b.sold_at || "").localeCompare(a.sold_at || ""))
     : [];
   const activeListings = selected ? listings.filter((listing) => listing.assigned_agent_id === selected.id && listing.status === "active") : [];
@@ -43,7 +43,7 @@ export function AgentsPanel({ agents, listings, onSave, onUploadPhoto, onNotice 
       <div className="agent-summary-row">
         <div><span>Registered agents</span><strong>{agents.length}</strong><small>Active team profiles</small></div>
         <div><span>Active listings</span><strong>{listings.filter((listing) => listing.status === "active" && listing.assigned_agent_id).length}</strong><small>Assigned across the team</small></div>
-        <div><span>Recorded closings</span><strong>{listings.filter((listing) => listing.status === "sold" && listing.sold_by_agent_id).length}</strong><small>Sales history on file</small></div>
+        <div><span>Recorded closings</span><strong>{listings.filter((listing) => listing.status === "closed" && listing.sold_by_agent_id).length}</strong><small>Sales history on file</small></div>
       </div>
 
       <div className="agents-layout">
@@ -54,7 +54,7 @@ export function AgentsPanel({ agents, listings, onSave, onUploadPhoto, onNotice 
           </div>
           <div className="agent-grid">
             {filtered.map((agent) => {
-              const sales = listings.filter((listing) => listing.status === "sold" && listing.sold_by_agent_id === agent.id);
+              const sales = listings.filter((listing) => listing.status === "closed" && listing.sold_by_agent_id === agent.id);
               const active = listings.filter((listing) => listing.status === "active" && listing.assigned_agent_id === agent.id).length;
               return (
                 <button key={agent.id} className={`agent-profile-card ${selected?.id === agent.id ? "selected" : ""}`} onClick={() => setSelectedId(agent.id)}>
@@ -98,7 +98,7 @@ export function AgentsPanel({ agents, listings, onSave, onUploadPhoto, onNotice 
                 <div><strong>{listing.title}</strong><small><MapPin size={11} />{listing.city}, {listing.state}</small></div>
                 <span><strong>{formatMoney(listing.asking_price)}</strong><small>{formatDate(listing.sold_at)}</small></span>
               </div>)}
-              {!soldListings.length && <div className="sales-empty"><Building2 size={23} /><strong>No recorded sales yet</strong><span>Listings marked sold by this agent will appear here automatically.</span></div>}
+              {!soldListings.length && <div className="sales-empty"><Building2 size={23} /><strong>No recorded sales yet</strong><span>Listings closed by this agent will appear here automatically.</span></div>}
             </div>
           </aside>
         ) : <aside className="agent-profile-detail empty-detail"><UserRound size={32} /><p>Add an agent to create the first profile.</p></aside>}

@@ -2,9 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "lin-pan-realty-panel",
   "account_id": "ac11722aea2c9e621745b4c15e3ce2ae",
-  "compatibility_date": "2026-08-18",
-  "compatibility_flags": [
-    "nodejs_compat"
+  "compatibility_date": "2026-05-22",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "admin.linpanrealty.com/*",
+      "zone_name": "linpanrealty.com"
+    }
   ],
   "main": "./worker/index.ts",
   "assets": {

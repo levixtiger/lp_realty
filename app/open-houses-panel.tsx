@@ -70,6 +70,7 @@ const statusOptions: { value: OpenHouseStatus; label: string }[] = [
 export function OpenHousesPanel({ openHouses, listings, onSave, onDelete, onNotice }: Props) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(openHouses[0]?.id || "");
+  const [detailOpen, setDetailOpen] = useState(false);
   const [editor, setEditor] = useState<OpenHouse | "new" | null>(null);
   const [posterMode, setPosterMode] = useState(false);
 
@@ -115,7 +116,7 @@ export function OpenHousesPanel({ openHouses, listings, onSave, onDelete, onNoti
         <div className="openhouse-list-header"><span>Event</span><span>Status</span><span>Properties</span><span /></div>
         <div className="openhouse-rows">
           {filtered.map((event) => (
-            <button key={event.id} className={`openhouse-row ${selected?.id === event.id ? "selected" : ""}`} onClick={() => setSelectedId(event.id)}>
+            <button key={event.id} className={`openhouse-row ${selected?.id === event.id ? "selected" : ""}`} onClick={() => { setSelectedId(event.id); setDetailOpen(true); }}>
               <span className="openhouse-event-cell"><span className="openhouse-icon"><CalendarDays size={17} /></span><span><strong>{event.title}</strong><small>{event.date_line}</small></span></span>
               <OpenHouseStatusBadge status={event.status} />
               <span className="openhouse-count">{event.items.length} card{event.items.length === 1 ? "" : "s"}</span>
@@ -126,7 +127,8 @@ export function OpenHousesPanel({ openHouses, listings, onSave, onDelete, onNoti
         </div>
       </section>
 
-      {selected ? <section className="openhouse-preview-panel">
+      {selected ? <section className={`openhouse-preview-panel mobile-detail ${detailOpen ? "mobile-detail-open" : ""}`}>
+        <button className="mobile-detail-close" onClick={() => setDetailOpen(false)} aria-label="Close OpenHouse details"><X size={18} /></button>
         <div className="openhouse-detail-head">
           <div><p>Poster preview</p><h2>{selected.title}</h2><span>{selected.date_line}</span></div>
           <div>
