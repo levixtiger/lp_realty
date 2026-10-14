@@ -25,10 +25,19 @@ export type Database = {
         Relationships: [];
       };
       leads: {
-        Row: { id: string; first_name: string; last_name: string; email: string | null; phone: string | null; source: string | null; status: string; priority: string; assigned_agent_id: string | null; budget_min: number | null; budget_max: number | null; preferred_areas: string[]; property_interest: string | null; notes: string | null; next_follow_up_at: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
-        Insert: { id?: string; first_name: string; last_name?: string; email?: string | null; phone?: string | null; source?: string | null; status?: string; priority?: string; assigned_agent_id?: string | null; budget_min?: number | null; budget_max?: number | null; preferred_areas?: string[]; property_interest?: string | null; notes?: string | null; next_follow_up_at?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Row: { id: string; first_name: string; last_name: string; email: string | null; phone: string | null; source: string | null; status: string; priority: string; lead_type: string; assigned_agent_id: string | null; budget_min: number | null; budget_max: number | null; preferred_areas: string[]; property_interest: string | null; notes: string | null; next_follow_up_at: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; first_name: string; last_name?: string; email?: string | null; phone?: string | null; source?: string | null; status?: string; priority?: string; lead_type?: string; assigned_agent_id?: string | null; budget_min?: number | null; budget_max?: number | null; preferred_areas?: string[]; property_interest?: string | null; notes?: string | null; next_follow_up_at?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["leads"]["Insert"]>;
         Relationships: [{ foreignKeyName: "leads_assigned_agent_id_fkey"; columns: ["assigned_agent_id"]; isOneToOne: false; referencedRelation: "agents"; referencedColumns: ["id"] }];
+      };
+      lead_listings: {
+        Row: { lead_id: string; listing_id: string; created_at: string };
+        Insert: { lead_id: string; listing_id: string; created_at?: string };
+        Update: never;
+        Relationships: [
+          { foreignKeyName: "lead_listings_lead_id_fkey"; columns: ["lead_id"]; isOneToOne: false; referencedRelation: "leads"; referencedColumns: ["id"] },
+          { foreignKeyName: "lead_listings_listing_id_fkey"; columns: ["listing_id"]; isOneToOne: false; referencedRelation: "listings"; referencedColumns: ["id"] },
+        ];
       };
       lead_interactions: {
         Row: { id: string; lead_id: string; interaction_type: string; direction: string; subject: string | null; notes: string; happened_at: string; actor_clerk_user_id: string; actor_name: string | null; created_at: string };
@@ -73,14 +82,14 @@ export type Database = {
         Relationships: [];
       };
       accounting_closings: {
-        Row: { id: string; office: string; property_address: string; mls_number: string | null; reception_date: string; check_amount: number; check_number: string | null; check_image_name: string | null; check_image_url: string | null; deal_sheet_name: string | null; deal_sheet_url: string | null; closing_date: string; buyer: string | null; seller: string | null; transaction_type: string; gross_commission: number; company_commission_income: number; closing_file_name: string | null; closing_file_url: string | null; notes: string | null; status: string; approval_date: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
-        Insert: { id?: string; office?: string; property_address: string; mls_number?: string | null; reception_date?: string; check_amount?: number; check_number?: string | null; check_image_name?: string | null; check_image_url?: string | null; deal_sheet_name?: string | null; deal_sheet_url?: string | null; closing_date: string; buyer?: string | null; seller?: string | null; transaction_type?: string; gross_commission?: number; company_commission_income?: number; closing_file_name?: string | null; closing_file_url?: string | null; notes?: string | null; status?: string; approval_date?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Row: { id: string; office: string; property_address: string; mls_number: string | null; reception_date: string; check_amount: number; check_number: string | null; check_image_name: string | null; check_image_url: string | null; deal_sheet_name: string | null; deal_sheet_url: string | null; deal_sheet_files: Json; closing_date: string; buyer: string | null; seller: string | null; transaction_type: string; gross_commission: number; company_commission_income: number; closing_file_name: string | null; closing_file_url: string | null; notes: string | null; status: string; approval_date: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; office?: string; property_address: string; mls_number?: string | null; reception_date?: string; check_amount?: number; check_number?: string | null; check_image_name?: string | null; check_image_url?: string | null; deal_sheet_name?: string | null; deal_sheet_url?: string | null; deal_sheet_files?: Json; closing_date: string; buyer?: string | null; seller?: string | null; transaction_type?: string; gross_commission?: number; company_commission_income?: number; closing_file_name?: string | null; closing_file_url?: string | null; notes?: string | null; status?: string; approval_date?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["accounting_closings"]["Insert"]>;
         Relationships: [];
       };
       accounting_intake_payments: {
-        Row: { id: string; closing_id: string; payment_method: string; amount: number; reference_number: string | null; document_name: string | null; document_url: string | null; sort_order: number; created_at: string; updated_at: string };
-        Insert: { id?: string; closing_id: string; payment_method?: string; amount?: number; reference_number?: string | null; document_name?: string | null; document_url?: string | null; sort_order?: number; created_at?: string; updated_at?: string };
+        Row: { id: string; closing_id: string; payment_method: string; amount: number; reference_number: string | null; document_name: string | null; document_url: string | null; document_files: Json; sort_order: number; created_at: string; updated_at: string };
+        Insert: { id?: string; closing_id: string; payment_method?: string; amount?: number; reference_number?: string | null; document_name?: string | null; document_url?: string | null; document_files?: Json; sort_order?: number; created_at?: string; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["accounting_intake_payments"]["Insert"]>;
         Relationships: [{ foreignKeyName: "accounting_intake_payments_closing_id_fkey"; columns: ["closing_id"]; isOneToOne: false; referencedRelation: "accounting_closings"; referencedColumns: ["id"] }];
       };

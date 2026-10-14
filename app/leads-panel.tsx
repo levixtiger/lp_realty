@@ -1,18 +1,20 @@
 "use client";
 
-import { CalendarClock, ChevronRight, CircleUserRound, Mail, MessageSquarePlus, Phone, Plus, Search, Trash2, UserRound, X } from "lucide-react";
+import { Building2, CalendarClock, Check, ChevronRight, CircleUserRound, Mail, MapPin, MessageSquarePlus, Phone, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import type { Agent } from "./listings-panel";
+import type { Agent, Listing } from "./listings-panel";
 
 export type LeadStatus = "new" | "contacted" | "qualified" | "showing" | "offered" | "win" | "lost" | "not_interested";
 export type LeadPriority = "low" | "medium" | "high";
 export type LeadSource = "call_in" | "walk_in" | "open_house" | "referral" | "website" | "other";
+export type LeadType = "buyer" | "seller" | "landlord" | "tenant";
 export type InteractionType = "call" | "email" | "text" | "meeting" | "note";
 export type InteractionDirection = "inbound" | "outbound" | "internal";
 
 export type Lead = {
   id: string; first_name: string; last_name: string; email: string | null; phone: string | null;
   source: LeadSource | null; status: LeadStatus; priority: LeadPriority; assigned_agent_id: string | null;
+  lead_type: LeadType; listing_ids: string[];
   budget_min: number | null; budget_max: number | null; preferred_areas: string[]; property_interest: string | null;
   notes: string | null; next_follow_up_at: string | null; created_by: string; updated_by: string;
   created_at: string; updated_at: string; deleted_at?: string | null; assigned_agent?: Agent | null;
@@ -28,7 +30,7 @@ export type LeadDraft = Omit<Lead, "id" | "created_by" | "updated_by" | "created
 export type InteractionDraft = Pick<LeadInteraction, "interaction_type" | "direction" | "subject" | "notes" | "happened_at">;
 
 type Props = {
-  leads: Lead[]; interactions: LeadInteraction[]; agents: Agent[];
+  leads: Lead[]; interactions: LeadInteraction[]; agents: Agent[]; listings: Listing[];
   onSave: (draft: LeadDraft, id?: string) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onAddInteraction: (leadId: string, draft: InteractionDraft) => Promise<boolean>;
@@ -52,7 +54,14 @@ const sourceOptions: { value: LeadSource; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-export function LeadsPanel({ leads, interactions, agents, onSave, onDelete, onAddInteraction, onNotice, canAssignLeads = true }: Props) {
+const leadTypeOptions: { value: LeadType; label: string }[] = [
+  { value: "buyer", label: "Buyer" },
+  { value: "seller", label: "Seller" },
+  { value: "landlord", label: "Landlord" },
+  { value: "tenant", label: "Tenant" },
+];
+
+export function LeadsPanel({ leads, interactions, agents, listings, onSave, onDelete, onAddInteraction, onNotice, canAssignLeads = true }: Props) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<LeadStatus | "all">("all");
   const [ageFilter, setAgeFilter] = useState<"all" | "3" | "7" | "30">("all");
@@ -140,7 +149,7 @@ export function LeadsPanel({ leads, interactions, agents, onSave, onDelete, onAd
         <button className="mobile-detail-close" onClick={() => setDetailOpen(false)} aria-label="Close lead details"><X size={18} /></button>
         <div className="lead-detail-hero">
           <span className="lead-avatar large">{initials(fullName(selected))}</span>
-          <div><p>{selected.priority} priority</p><h2>{fullName(selected)}</h2><span>{selected.property_interest || "Property interest not added"}</span></div>
+          <div><p>{leadTypeLabel(selected.lead_type)} · {selected.priority} priority</p><h2>{fullName(selected)}</h2><span>{selected.property_interest || "Property interest not added"}</span></div>
           <LeadStatusBadge status={selected.status} />
         </div>
         <div className="lead-contact-row">
@@ -149,11 +158,16 @@ export function LeadsPanel({ leads, interactions, agents, onSave, onDelete, onAd
         </div>
         <div className="lead-facts-grid">
           <div><span>Assigned agent</span><strong>{selected.assigned_agent?.full_name || "Unassigned"}</strong></div>
+          <div><span>Lead type</span><strong>{leadTypeLabel(selected.lead_type)}</strong></div>
           <div><span>Source</span><strong>{sourceLabel(selected.source)}</strong></div>
           <div><span>Budget</span><strong>{formatBudget(selected.budget_min, selected.budget_max)}</strong></div>
           <div><span>Next follow-up</span><strong>{selected.next_follow_up_at ? formatDateTime(selected.next_follow_up_at) : "Not scheduled"}</strong></div>
         </div>
         {!!selected.preferred_areas.length && <div className="lead-areas"><span>Preferred areas</span><div>{selected.preferred_areas.map((area) => <small key={area}>{area}</small>)}</div></div>}
+        {!!selected.listing_ids.length && <div className="lead-linked-listings"><span>Linked listings</span><div>{selected.listing_ids.map((listingId) => {
+          const listing = listings.find((item) => item.id === listingId);
+          return listing ? <article key={listing.id}><strong>{listing.title}</strong><small>{listing.address_line_1}, {listing.city} · {listing.status.replace("_", "-")}</small></article> : null;
+        })}</div></div>}
         {selected.notes && <div className="lead-notes"><span>Notes</span><p>{selected.notes}</p></div>}
         <div className="lead-detail-actions"><button className="secondary-button" onClick={() => setEditor(selected)}>Edit lead</button><button className="danger-button" onClick={() => void remove(selected.id)} aria-label="Delete lead"><Trash2 size={16} /></button></div>
         <div className="interaction-heading"><div><span>Interaction history</span><small>{selectedInteractions.length} recorded touchpoint{selectedInteractions.length === 1 ? "" : "s"}</small></div><button className="primary-button" onClick={() => setInteractionEditor(true)}><MessageSquarePlus size={15} />Log interaction</button></div>
@@ -167,12 +181,12 @@ export function LeadsPanel({ leads, interactions, agents, onSave, onDelete, onAd
       </aside> : <aside className="lead-detail empty-detail"><CircleUserRound size={32} /><p>Add a lead to begin tracking conversations.</p></aside>}
     </div>
 
-    {editor && <LeadEditor lead={editor === "new" ? undefined : editor} agents={agents} canAssignLeads={canAssignLeads} onClose={() => setEditor(null)} onSave={save} />}
+    {editor && <LeadEditor lead={editor === "new" ? undefined : editor} agents={agents} listings={listings} canAssignLeads={canAssignLeads} onClose={() => setEditor(null)} onSave={save} />}
     {interactionEditor && selected && <InteractionEditor lead={selected} onClose={() => setInteractionEditor(false)} onSave={addInteraction} />}
   </>;
 }
 
-function LeadEditor({ lead, agents, canAssignLeads, onClose, onSave }: { lead?: Lead; agents: Agent[]; canAssignLeads: boolean; onClose: () => void; onSave: (draft: LeadDraft, id?: string) => Promise<boolean> }) {
+function LeadEditor({ lead, agents, listings, canAssignLeads, onClose, onSave }: { lead?: Lead; agents: Agent[]; listings: Listing[]; canAssignLeads: boolean; onClose: () => void; onSave: (draft: LeadDraft, id?: string) => Promise<boolean> }) {
   const [draft, setDraft] = useState<LeadDraft>(() => lead ? toDraft(lead) : emptyLeadDraft(canAssignLeads ? null : agents[0]?.id || null));
   const [saving, setSaving] = useState(false);
   const [contactError, setContactError] = useState("");
@@ -196,6 +210,7 @@ function LeadEditor({ lead, agents, canAssignLeads, onClose, onSave }: { lead?: 
         <label>Email<input type="email" value={draft.email || ""} aria-invalid={Boolean(contactError)} aria-describedby="lead-contact-error" onChange={(event) => set("email", event.target.value || null)} /></label>
         <label>Phone<input type="tel" value={draft.phone || ""} aria-invalid={Boolean(contactError)} aria-describedby="lead-contact-error" onChange={(event) => set("phone", event.target.value || null)} /></label>
         <p className={`lead-contact-guidance ${contactError ? "error" : ""}`} id="lead-contact-error" aria-live="polite">{contactError || "Add at least one contact method: email or phone."}</p>
+        <label className="full">Lead type<select value={draft.lead_type} onChange={(event) => set("lead_type", event.target.value as LeadType)}>{leadTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label>Stage<select value={draft.status} onChange={(event) => set("status", event.target.value as LeadStatus)}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label>Priority<select value={draft.priority} onChange={(event) => set("priority", event.target.value as LeadPriority)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
         {canAssignLeads ? <label>Assigned agent<select value={draft.assigned_agent_id || ""} onChange={(event) => set("assigned_agent_id", event.target.value || null)}><option value="">Unassigned</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : <label>Assigned agent<input value={agents[0]?.full_name || "Your agent profile"} disabled /></label>}
@@ -203,6 +218,7 @@ function LeadEditor({ lead, agents, canAssignLeads, onClose, onSave }: { lead?: 
         <label>Minimum budget<input type="number" min="0" value={draft.budget_min ?? ""} onChange={(event) => set("budget_min", event.target.value ? Number(event.target.value) : null)} /></label>
         <label>Maximum budget<input type="number" min="0" value={draft.budget_max ?? ""} onChange={(event) => set("budget_max", event.target.value ? Number(event.target.value) : null)} /></label>
         <label className="full">Property interest<input value={draft.property_interest || ""} onChange={(event) => set("property_interest", event.target.value || null)} placeholder="2-bedroom condo, commercial storefront…" /></label>
+        <div className="full"><ListingBinder listings={listings} selectedIds={draft.listing_ids} onChange={(listingIds) => set("listing_ids", listingIds)} /></div>
         <label className="full">Preferred areas<input value={draft.preferred_areas.join(", ")} onChange={(event) => set("preferred_areas", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} placeholder="Flushing, Great Neck, Manhattan" /></label>
         <label className="full">Next follow-up<input type="datetime-local" value={toLocalInput(draft.next_follow_up_at)} onChange={(event) => set("next_follow_up_at", event.target.value ? new Date(event.target.value).toISOString() : null)} /></label>
         <label className="full">Notes<textarea rows={4} value={draft.notes || ""} onChange={(event) => set("notes", event.target.value || null)} placeholder="Needs, timeline, preferences, and useful context…" /></label>
@@ -232,6 +248,27 @@ function InteractionEditor({ lead, onClose, onSave }: { lead: Lead; onClose: () 
 }
 
 function LeadStatusBadge({ status }: { status: LeadStatus }) { return <span className={`lead-status ${status}`}>{statusOptions.find((item) => item.value === status)?.label}</span>; }
+function ListingBinder({ listings, selectedIds, onChange }: { listings: Listing[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+  const [query, setQuery] = useState("");
+  const visible = listings.filter((listing) => `${listing.title} ${listing.address_line_1} ${listing.city} ${listing.property_type}`.toLowerCase().includes(query.toLowerCase()));
+  const selectedListings = selectedIds.map((id) => listings.find((listing) => listing.id === id)).filter((listing): listing is Listing => Boolean(listing));
+  const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id]);
+  return <div className="lead-listing-binder">
+    <div className="lead-listing-binder-head"><div><span>Linked listings</span><small>Choose the properties connected to this lead</small></div><strong>{selectedIds.length ? `${selectedIds.length} selected` : "Optional"}</strong></div>
+    {!!selectedListings.length && <div className="lead-listing-selection" aria-label="Selected listings">{selectedListings.map((listing) => <button type="button" key={listing.id} onClick={() => toggle(listing.id)} title={`Remove ${listing.title}`}><span>{listing.title}</span><X size={13} /></button>)}</div>}
+    <label className="lead-listing-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by address, city, or property type" />{query && <button type="button" onClick={() => setQuery("")} aria-label="Clear listing search"><X size={14} /></button>}</label>
+    <div className="lead-listing-options">{visible.map((listing) => {
+      const selected = selectedIds.includes(listing.id);
+      const imageUrl = listing.display_image_urls?.[0] || listing.image_urls?.[0];
+      return <label key={listing.id} className={selected ? "selected" : ""}>
+        <input type="checkbox" checked={selected} onChange={() => toggle(listing.id)} />
+        <span className="lead-listing-thumb">{imageUrl ? <img src={imageUrl} alt="" /> : <Building2 size={18} />}</span>
+        <span className="lead-listing-copy"><strong>{listing.title}</strong><small><MapPin size={12} />{listing.address_line_1}, {listing.city}</small><em>{listing.property_type} · {listing.status.replace("_", "-")}</em></span>
+        <span className="lead-listing-check" aria-hidden="true">{selected && <Check size={14} />}</span>
+      </label>;
+    })}{!visible.length && <div className="lead-listing-empty"><Search size={20} /><strong>No matching listings</strong><span>Try another address, city, or property type.</span></div>}</div>
+  </div>;
+}
 function fullName(lead: Pick<Lead, "first_name" | "last_name">) { return `${lead.first_name} ${lead.last_name}`.trim(); }
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "LD"; }
 function label(value: string) { return value.charAt(0).toUpperCase() + value.slice(1); }
@@ -241,5 +278,6 @@ function formatDateTime(value: string) { return new Intl.DateTimeFormat("en-US",
 function formatBudget(min: number | null, max: number | null) { const f = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(value); return min && max ? `${f(min)}–${f(max)}` : max ? `Up to ${f(max)}` : min ? `From ${f(min)}` : "Not specified"; }
 function toLocalInput(value: string | null) { if (!value) return ""; const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
 function sourceLabel(source: LeadSource | null) { return sourceOptions.find((option) => option.value === source)?.label || "Not recorded"; }
-function emptyLeadDraft(assignedAgentId: string | null = null): LeadDraft { return { first_name: "", last_name: "", email: null, phone: null, source: "other", status: "new", priority: "medium", assigned_agent_id: assignedAgentId, budget_min: null, budget_max: null, preferred_areas: [], property_interest: null, notes: null, next_follow_up_at: null }; }
-function toDraft(lead: Lead): LeadDraft { return { first_name: lead.first_name, last_name: lead.last_name, email: lead.email, phone: lead.phone, source: lead.source, status: lead.status, priority: lead.priority, assigned_agent_id: lead.assigned_agent_id, budget_min: lead.budget_min, budget_max: lead.budget_max, preferred_areas: lead.preferred_areas || [], property_interest: lead.property_interest, notes: lead.notes, next_follow_up_at: lead.next_follow_up_at }; }
+function leadTypeLabel(type: LeadType) { return leadTypeOptions.find((option) => option.value === type)?.label || "Buyer"; }
+function emptyLeadDraft(assignedAgentId: string | null = null): LeadDraft { return { first_name: "", last_name: "", email: null, phone: null, source: "other", status: "new", priority: "medium", lead_type: "buyer", listing_ids: [], assigned_agent_id: assignedAgentId, budget_min: null, budget_max: null, preferred_areas: [], property_interest: null, notes: null, next_follow_up_at: null }; }
+function toDraft(lead: Lead): LeadDraft { return { first_name: lead.first_name, last_name: lead.last_name, email: lead.email, phone: lead.phone, source: lead.source, status: lead.status, priority: lead.priority, lead_type: lead.lead_type || "buyer", listing_ids: lead.listing_ids || [], assigned_agent_id: lead.assigned_agent_id, budget_min: lead.budget_min, budget_max: lead.budget_max, preferred_areas: lead.preferred_areas || [], property_interest: lead.property_interest, notes: lead.notes, next_follow_up_at: lead.next_follow_up_at }; }

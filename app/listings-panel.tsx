@@ -199,7 +199,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [listingDetailOpen, setListingDetailOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ListingStatus | "all">("all");
+  const [filter, setFilter] = useState<ListingStatus | "all">("active");
   const [editor, setEditor] = useState<Listing | "new" | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [notice, setNotice] = useState("");
@@ -495,7 +495,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
         {!isAgentAccess && <section className="embedded-openhouses">
           <div className="embedded-section-head"><p className="eyebrow">Listing marketing</p><h2>OpenHouse events</h2><span>Create poster-ready open house events from listing inventory.</span></div>
           <OpenHousesPanel openHouses={openHouses} listings={listings} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} />
-        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
+        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} listings={listings} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}

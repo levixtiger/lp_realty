@@ -52,15 +52,17 @@ test("agents tab includes profiles, photo upload, and derived sales history", as
 });
 
 test("leads tab persists contacts with role-scoped assignment and interaction history", async () => {
-  const [leadsPanel, listingPanel, clerkPanel, migration, accessMigration, stageMigration, contactMigration, legacyDeleteMigration] = await Promise.all([
+  const [leadsPanel, listingPanel, clerkPanel, databaseTypes, migration, accessMigration, stageMigration, contactMigration, legacyDeleteMigration, leadListingMigration] = await Promise.all([
     readFile(new URL("../app/leads-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/database.types.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818223000_add_lead_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261009180000_secure_agent_leads.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261009190000_expand_lead_stages.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261009200000_require_lead_contact.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261012120000_allow_deleting_legacy_incomplete_leads.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261014133000_add_lead_types_and_listing_links.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(listingPanel, /activeView === "leads"/);
@@ -69,6 +71,10 @@ test("leads tab persists contacts with role-scoped assignment and interaction hi
   assert.match(leadsPanel, /Log interaction/);
   assert.match(leadsPanel, /LeadSource = "call_in" \| "walk_in" \| "open_house" \| "referral" \| "website" \| "other"/);
   assert.match(leadsPanel, /LeadStatus = "new" \| "contacted" \| "qualified" \| "showing" \| "offered" \| "win" \| "lost" \| "not_interested"/);
+  assert.match(leadsPanel, /LeadType = "buyer" \| "seller" \| "landlord" \| "tenant"/);
+  assert.match(leadsPanel, /Linked listings/);
+  assert.match(leadsPanel, /ListingBinder/);
+  assert.match(leadsPanel, /Choose the properties connected to this lead/);
   assert.match(leadsPanel, /Filter leads by age/);
   assert.match(leadsPanel, /lead-age-tabs/);
   assert.match(leadsPanel, /\['3', '3D'\]/);
@@ -85,7 +91,10 @@ test("leads tab persists contacts with role-scoped assignment and interaction hi
   assert.match(leadsPanel, /selected && detailOpen/);
   assert.match(leadsPanel, /canAssignLeads/);
   assert.match(listingPanel, /canAssignLeads=\{!isAgentAccess\}/);
+  assert.match(listingPanel, /listings=\{listings\}/);
   assert.match(clerkPanel, /from\("lead_interactions"\)/);
+  assert.match(clerkPanel, /from\("lead_listings"\)/);
+  assert.match(clerkPanel, /listing_links:lead_listings\(listing_id\)/);
   assert.match(clerkPanel, /actor_clerk_user_id: user\.id/);
   assert.match(clerkPanel, /isAgentAccess && currentAgent \? \{ \.\.\.draft, assigned_agent_id: currentAgent\.id \}/);
   assert.match(clerkPanel, /lead\.assigned_agent_id === currentAgent\.id/);
@@ -102,6 +111,11 @@ test("leads tab persists contacts with role-scoped assignment and interaction hi
   assert.match(contactMigration, /nullif\(btrim\(email\), ''\)/);
   assert.match(contactMigration, /nullif\(btrim\(phone\), ''\)/);
   assert.match(legacyDeleteMigration, /deleted_at is not null/);
+  assert.match(databaseTypes, /lead_type: string/);
+  assert.match(databaseTypes, /lead_listings/);
+  assert.match(leadListingMigration, /lead_type in \('buyer', 'seller', 'landlord', 'tenant'\)/);
+  assert.match(leadListingMigration, /create table if not exists public\.lead_listings/);
+  assert.match(leadListingMigration, /public\.can_access_lead\(lead_id\)/);
 });
 
 test("Supabase requests refresh stale Clerk JWTs and reload when the tab returns", async () => {
@@ -277,7 +291,7 @@ test("content data support remains available without a Content navigation tab", 
 });
 
 test("Accounting tab manages multi-payment intake, office-separated accounting, commission splits, reports, and audit history", async () => {
-  const [accountingPanel, listingPanel, clerkPanel, databaseTypes, migration, checkIntakeMigration, intakePaymentsMigration] = await Promise.all([
+  const [accountingPanel, listingPanel, clerkPanel, databaseTypes, migration, checkIntakeMigration, intakePaymentsMigration, multiFileMigration] = await Promise.all([
     readFile(new URL("../app/accounting-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
@@ -285,6 +299,7 @@ test("Accounting tab manages multi-payment intake, office-separated accounting, 
     readFile(new URL("../supabase/migrations/20261005120000_add_accounting_system.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261005123000_add_accounting_check_intake_fields.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261009160000_add_accounting_intake_payments.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261014120000_add_multi_file_accounting_documents.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(listingPanel, /activeView === "accounting"/);
@@ -299,7 +314,11 @@ test("Accounting tab manages multi-payment intake, office-separated accounting, 
   assert.match(accountingPanel, /Payment method/);
   assert.match(accountingPanel, /Wire/);
   assert.match(accountingPanel, /Cash/);
-  assert.match(accountingPanel, /Deal sheet upload/);
+  assert.match(accountingPanel, /Deal sheets/);
+  assert.match(accountingPanel, /DocumentUploader/);
+  assert.match(accountingPanel, /type="file" multiple/);
+  assert.match(accountingPanel, /Add one or more deal sheets/);
+  assert.match(accountingPanel, /Receipts, checks, wire confirmations, or photos/);
   assert.match(accountingPanel, /Deposit intake/);
   assert.match(accountingPanel, /Confirm deposit/);
   assert.match(accountingPanel, /Finalize/);
@@ -347,6 +366,8 @@ test("Accounting tab manages multi-payment intake, office-separated accounting, 
   assert.match(databaseTypes, /reception_date/);
   assert.match(databaseTypes, /accounting_allocations/);
   assert.match(databaseTypes, /accounting_intake_payments/);
+  assert.match(databaseTypes, /deal_sheet_files: Json/);
+  assert.match(databaseTypes, /document_files: Json/);
   assert.match(databaseTypes, /payment_method/);
   assert.match(databaseTypes, /accounting_payees/);
   assert.match(databaseTypes, /accounting_rules/);
@@ -363,4 +384,6 @@ test("Accounting tab manages multi-payment intake, office-separated accounting, 
   assert.match(intakePaymentsMigration, /create table if not exists public\.accounting_intake_payments/);
   assert.match(intakePaymentsMigration, /add column if not exists payment_method/);
   assert.match(intakePaymentsMigration, /payment_method in \('check', 'cash', 'wire', 'other'\)/);
+  assert.match(multiFileMigration, /add column if not exists deal_sheet_files jsonb/);
+  assert.match(multiFileMigration, /add column if not exists document_files jsonb/);
 });

@@ -4,7 +4,7 @@ import { SignInButton, UserButton, useSession, useUser } from "@clerk/nextjs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Database } from "../lib/database.types";
-import type { AccountingAccessRole, AccountingClosing, AccountingClosingDraft, AccountingPayee, AccountingPayeeDraft, AccountingRule, AccountingRuleDraft } from "./accounting-panel";
+import type { AccountingAccessRole, AccountingClosing, AccountingClosingDraft, AccountingDocumentFile, AccountingPayee, AccountingPayeeDraft, AccountingRule, AccountingRuleDraft } from "./accounting-panel";
 import {
   ListingPanel,
   type Agent,
@@ -109,7 +109,7 @@ export function AuthenticatedPanel() {
         .is("deleted_at", null)
         .order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("agents").select("id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at").eq("active", true).order("full_name")),
-      withFreshTokenRetry(() => supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)").is("deleted_at", null).order("updated_at", { ascending: false })),
+      withFreshTokenRetry(() => supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), listing_links:lead_listings(listing_id)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("lead_interactions").select("*").order("happened_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("open_houses").select("*, items:open_house_items(*)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("content_videos").select("*, links:content_video_links(*), listing:listings(id,slug,title,address_line_1,address_line_2,city,state,postal_code,property_type,offering_type,asking_price,building_area_sqft,heating,annual_tax,common_charge,description,open_house,status,assigned_agent_id,sold_by_agent_id,sold_at,image_urls,source_url,published,created_by,updated_by,created_at,updated_at,deleted_at), agent:agents(id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at)").is("deleted_at", null).order("updated_at", { ascending: false })),
@@ -177,7 +177,8 @@ export function AuthenticatedPanel() {
         ...agent,
         display_photo_url: agent.photo_url ? (isExternalImage(agent.photo_url) ? agent.photo_url : agentPhotoUrls.get(agent.photo_url) || null) : null,
       })));
-      setLeads((leadResult.data || []) as unknown as Lead[]);
+      const rawLeads = (leadResult.data || []) as unknown as Array<Lead & { listing_links?: { listing_id: string }[] }>;
+      setLeads(rawLeads.map((lead) => ({ ...lead, lead_type: lead.lead_type || "buyer", listing_ids: (lead.listing_links || []).map((link) => link.listing_id) })));
       setLeadInteractions((interactionResult.data || []) as unknown as LeadInteraction[]);
       setOpenHouses(rawOpenHouses.map((event) => ({
         ...event,
@@ -196,7 +197,8 @@ export function AuthenticatedPanel() {
         closing.closing_file_url,
         closing.check_image_url,
         closing.deal_sheet_url,
-        ...(closing.intake_payments || []).map((payment) => payment.document_url),
+        ...normalizeAccountingFiles(closing.deal_sheet_files).map((file) => file.url),
+        ...(closing.intake_payments || []).flatMap((payment) => [payment.document_url, ...normalizeAccountingFiles(payment.document_files).map((file) => file.url)]),
         ...(closing.allocations || []).map((allocation) => allocation.check_image_url),
       ]).filter((file): file is string => Boolean(file) && !isExternalImage(file)))];
       const accountingDocumentUrls = new Map<string, string>();
@@ -213,6 +215,7 @@ export function AuthenticatedPanel() {
         check_amount: Number(closing.check_amount ?? closing.gross_commission ?? 0),
         deal_sheet_name: closing.deal_sheet_name || closing.closing_file_name || null,
         deal_sheet_url: closing.deal_sheet_url || closing.closing_file_url || null,
+        deal_sheet_files: withAccountingDisplayUrls(normalizeAccountingFiles(closing.deal_sheet_files), accountingDocumentUrls),
         display_closing_file_url: closing.closing_file_url ? (isExternalImage(closing.closing_file_url) ? closing.closing_file_url : accountingDocumentUrls.get(closing.closing_file_url) || null) : null,
         display_check_image_url: closing.check_image_url ? (isExternalImage(closing.check_image_url) ? closing.check_image_url : accountingDocumentUrls.get(closing.check_image_url) || null) : null,
         display_deal_sheet_url: (closing.deal_sheet_url || closing.closing_file_url) ? (isExternalImage(closing.deal_sheet_url || closing.closing_file_url || "") ? closing.deal_sheet_url || closing.closing_file_url : accountingDocumentUrls.get(closing.deal_sheet_url || closing.closing_file_url || "") || null) : null,
@@ -221,6 +224,7 @@ export function AuthenticatedPanel() {
           payment_method: payment.payment_method || "check",
           amount: Number(payment.amount || 0),
           display_document_url: payment.document_url ? (isExternalImage(payment.document_url) ? payment.document_url : accountingDocumentUrls.get(payment.document_url) || null) : null,
+          document_files: withAccountingDisplayUrls(normalizeAccountingFiles(payment.document_files), accountingDocumentUrls),
         })),
         allocations: (closing.allocations || []).slice().sort((a, b) => a.sort_order - b.sort_order).map((allocation) => ({
           ...allocation,
@@ -386,9 +390,17 @@ export function AuthenticatedPanel() {
   const saveLead = async (draft: LeadDraft, id?: string) => {
     if (!supabase || !user) return false;
     const scopedDraft = isAgentAccess && currentAgent ? { ...draft, assigned_agent_id: currentAgent.id } : draft;
-    const payload = { ...scopedDraft, email: scopedDraft.email || null, phone: scopedDraft.phone || null, source: scopedDraft.source || null, assigned_agent_id: scopedDraft.assigned_agent_id || null, preferred_areas: scopedDraft.preferred_areas.filter(Boolean), property_interest: scopedDraft.property_interest || null, notes: scopedDraft.notes || null, updated_by: user.id };
-    const result = id ? await withFreshTokenRetry(() => supabase.from("leads").update(payload).eq("id", id)) : await withFreshTokenRetry(() => supabase.from("leads").insert({ ...payload, created_by: user.id }));
+    const { listing_ids: listingIds, ...leadDraft } = scopedDraft;
+    const payload = { ...leadDraft, lead_type: leadDraft.lead_type || "buyer", email: leadDraft.email || null, phone: leadDraft.phone || null, source: leadDraft.source || null, assigned_agent_id: leadDraft.assigned_agent_id || null, preferred_areas: leadDraft.preferred_areas.filter(Boolean), property_interest: leadDraft.property_interest || null, notes: leadDraft.notes || null, updated_by: user.id };
+    const result = id ? await withFreshTokenRetry(() => supabase.from("leads").update(payload).eq("id", id).select("id").single()) : await withFreshTokenRetry(() => supabase.from("leads").insert({ ...payload, created_by: user.id }).select("id").single());
     if (result.error) { setError(result.error.message); return false; }
+    const leadId = result.data.id;
+    const deleteLinksResult = await withFreshTokenRetry(() => supabase.from("lead_listings").delete().eq("lead_id", leadId));
+    if (deleteLinksResult.error) { setError(deleteLinksResult.error.message); return false; }
+    if (listingIds.length) {
+      const insertLinksResult = await withFreshTokenRetry(() => supabase.from("lead_listings").insert([...new Set(listingIds)].map((listingId) => ({ lead_id: leadId, listing_id: listingId }))));
+      if (insertLinksResult.error) { setError(insertLinksResult.error.message); return false; }
+    }
     await load();
     return true;
   };
@@ -557,6 +569,7 @@ export function AuthenticatedPanel() {
       check_image_url: closingDraft.check_image_url || null,
       deal_sheet_name: closingDraft.deal_sheet_name || closingDraft.closing_file_name || null,
       deal_sheet_url: closingDraft.deal_sheet_url || closingDraft.closing_file_url || null,
+      deal_sheet_files: normalizeAccountingFiles(closingDraft.deal_sheet_files),
       buyer: closingDraft.buyer || null,
       seller: closingDraft.seller || null,
       closing_file_name: closingDraft.deal_sheet_name || closingDraft.closing_file_name || null,
@@ -580,6 +593,7 @@ export function AuthenticatedPanel() {
         reference_number: payment.reference_number || null,
         document_name: payment.document_name || null,
         document_url: payment.document_url || null,
+        document_files: normalizeAccountingFiles(payment.document_files),
         sort_order: index,
       }))));
       if (insertIntakeResult.error) { setError(insertIntakeResult.error.message); return false; }
@@ -600,7 +614,7 @@ export function AuthenticatedPanel() {
         referral_fee: allocation.referral_fee,
         other_deductions: allocation.other_deductions,
         split_percentage: allocation.split_percentage,
-        net_to_agent: allocation.net_to_agent,
+        net_to_agent: Number(allocation.net_to_agent || 0),
         team_leader_share: allocation.team_leader_share,
         company_share: allocation.company_share,
         payment_status: allocation.payment_status,
@@ -825,6 +839,19 @@ export function AuthenticatedPanel() {
 
 function isExternalImage(value: string) {
   return /^https?:\/\//i.test(value);
+}
+
+function normalizeAccountingFiles(value: unknown): AccountingDocumentFile[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as { name?: unknown; url?: unknown };
+    return typeof candidate.url === "string" && candidate.url ? [{ name: typeof candidate.name === "string" && candidate.name ? candidate.name : "Document", url: candidate.url }] : [];
+  });
+}
+
+function withAccountingDisplayUrls(files: AccountingDocumentFile[], signedUrls: Map<string, string>): AccountingDocumentFile[] {
+  return files.map((file) => ({ ...file, display_url: isExternalImage(file.url) ? file.url : signedUrls.get(file.url) || null }));
 }
 
 function isAuthTokenError(error: { message?: string; code?: string } | null) {

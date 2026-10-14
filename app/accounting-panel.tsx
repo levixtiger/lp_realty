@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronRight, Download, FileText, Plus, Printer, ReceiptText, Search, Trash2, X } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import { ChevronRight, Download, FileText, Plus, Printer, ReceiptText, Search, Trash2, Upload, X } from "lucide-react";
+import { type ChangeEvent, type DragEvent, type FormEvent, useMemo, useRef, useState } from "react";
 import type { Agent } from "./listings-panel";
 
 export type AccountingClosingStatus = "pending_review" | "approved" | "paid";
@@ -10,6 +10,12 @@ export type AccountingPaymentMethod = "check" | "cash" | "wire" | "other";
 export type AccountingTransactionType = "sale" | "rent" | "lease" | "referral" | "other";
 export type AccountingOffice = "lin_pan_realty" | "lin_pan_international_realty";
 export type AccountingAccessRole = "operator" | "manager" | "agent" | "pending";
+
+export type AccountingDocumentFile = {
+  name: string;
+  url: string;
+  display_url?: string | null;
+};
 
 export type AccountingPayee = {
   id: string;
@@ -61,6 +67,7 @@ export type AccountingIntakePayment = {
   document_name: string | null;
   document_url: string | null;
   display_document_url?: string | null;
+  document_files: AccountingDocumentFile[];
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -90,6 +97,7 @@ export type AccountingClosing = {
   deal_sheet_name: string | null;
   deal_sheet_url: string | null;
   display_deal_sheet_url?: string | null;
+  deal_sheet_files: AccountingDocumentFile[];
   closing_date: string;
   buyer: string | null;
   seller: string | null;
@@ -112,8 +120,8 @@ export type AccountingClosing = {
   audit_entries: AccountingAuditEntry[];
 };
 
-export type AccountingAllocationDraft = Omit<AccountingAllocation, "id" | "closing_id" | "created_at" | "updated_at"> & { id?: string };
-export type AccountingIntakePaymentDraft = Omit<AccountingIntakePayment, "id" | "closing_id" | "created_at" | "updated_at" | "display_document_url"> & { id?: string };
+export type AccountingAllocationDraft = Omit<AccountingAllocation, "id" | "closing_id" | "created_at" | "updated_at" | "net_to_agent"> & { id?: string; net_to_agent: number | string };
+export type AccountingIntakePaymentDraft = Omit<AccountingIntakePayment, "id" | "closing_id" | "created_at" | "updated_at" | "display_document_url" | "amount"> & { id?: string; amount: number | string };
 export type AccountingClosingDraft = Omit<AccountingClosing, "id" | "created_by" | "updated_by" | "created_at" | "updated_at" | "deleted_at" | "display_closing_file_url" | "display_check_image_url" | "display_deal_sheet_url" | "intake_payments" | "allocations" | "audit_entries"> & { intake_payments: AccountingIntakePaymentDraft[]; allocations: AccountingAllocationDraft[] };
 
 export type AccountingRule = {
@@ -290,7 +298,7 @@ function ClosingDetail({ closing, accessRole, detailOpen, onClose, onDeposit, on
   const balanced = totals.companyShare >= 0;
   const isManager = accessRole === "manager";
   const intakePayments = effectiveIntakePayments(closing);
-  const dealSheetHref = closing.display_deal_sheet_url || closing.deal_sheet_url || closing.display_closing_file_url || closing.closing_file_url;
+  const dealSheetFiles = effectiveDocumentFiles(closing.deal_sheet_files, closing.deal_sheet_name || closing.closing_file_name, closing.deal_sheet_url || closing.closing_file_url, closing.display_deal_sheet_url || closing.display_closing_file_url);
 
   return <aside className={`accounting-detail mobile-detail ${detailOpen ? "mobile-detail-open" : ""}`}>
     <button className="mobile-detail-close" onClick={onClose} aria-label="Close intake details"><X size={18} /></button>
@@ -322,10 +330,13 @@ function ClosingDetail({ closing, accessRole, detailOpen, onClose, onDeposit, on
     <details className="collapse-card">
       <summary>Images and files</summary>
       {intakePayments.map((payment) => {
-        const documentHref = payment.display_document_url || payment.document_url;
-        return <div key={payment.id}><div className="document-card"><FileText size={17} /><div><span>{paymentMethodLabel(payment.payment_method)} document</span>{documentHref ? <a href={documentHref} target="_blank" rel="noreferrer">{payment.document_name || "Open payment document"}</a> : <strong>No document attached</strong>}</div></div>{documentHref && payment.document_name && /\.(png|jpe?g|webp|avif)$/i.test(payment.document_name) && <a className="check-image-preview" href={documentHref} target="_blank" rel="noreferrer"><img src={documentHref} alt={`${paymentMethodLabel(payment.payment_method)} for ${closing.property_address}`} /></a>}</div>;
+        const files = effectiveDocumentFiles(payment.document_files, payment.document_name, payment.document_url, payment.display_document_url);
+        return <div key={payment.id}>{files.length ? files.map((file, fileIndex) => {
+          const href = file.display_url || file.url;
+          return <div key={`${file.url}-${fileIndex}`}><div className="document-card"><FileText size={17} /><div><span>{paymentMethodLabel(payment.payment_method)} document</span><a href={href} target="_blank" rel="noreferrer">{file.name || "Open payment document"}</a></div></div>{/\.(png|jpe?g|webp|avif)$/i.test(file.name) && <a className="check-image-preview" href={href} target="_blank" rel="noreferrer"><img src={href} alt={`${paymentMethodLabel(payment.payment_method)} for ${closing.property_address}`} /></a>}</div>;
+        }) : <div className="document-card"><FileText size={17} /><div><span>{paymentMethodLabel(payment.payment_method)} document</span><strong>No document attached</strong></div></div>}</div>;
       })}
-      <div className="document-card"><FileText size={17} /><div><span>Deal sheet</span>{dealSheetHref ? <a href={dealSheetHref} target="_blank" rel="noreferrer">{closing.deal_sheet_name || closing.closing_file_name || "Open deal sheet"}</a> : <strong>No deal sheet attached</strong>}</div></div>
+      {dealSheetFiles.length ? dealSheetFiles.map((file, index) => <div className="document-card" key={`${file.url}-${index}`}><FileText size={17} /><div><span>Deal sheet</span><a href={file.display_url || file.url} target="_blank" rel="noreferrer">{file.name || "Open deal sheet"}</a></div></div>) : <div className="document-card"><FileText size={17} /><div><span>Deal sheet</span><strong>No deal sheet attached</strong></div></div>}
     </details>
     {isManager && <details className="collapse-card audit-list"><summary>Audit trail</summary>{closing.audit_entries.slice(0, 5).map((entry) => <div key={entry.id}><span>{formatDateTime(entry.created_at)}</span><strong>{entry.action}</strong><p>{entry.details || entry.actor_name || "System update"}</p></div>)}{!closing.audit_entries.length && <p>No audit entries yet.</p>}</details>}
     {isManager && closing.status !== "paid" && <div className={`detail-actions ${closing.status === "approved" ? "three-actions" : ""}`}>{closing.status === "pending_review" ? <button className="primary-button" onClick={onDeposit}>Deposit</button> : <><button className="secondary-button" onClick={onSplit}>Split</button><button className="primary-button" onClick={onFinalize}>Finalize</button></>}<button className="danger-button" onClick={onDelete} aria-label="Delete intake"><Trash2 size={17} /></button></div>}
@@ -339,12 +350,10 @@ function ClosingEditor({ closing, agents, onUploadDocument, onClose, onSave }: {
   const setReceptionDate = (value: string) => setDraft((current) => ({ ...current, reception_date: value, closing_date: value || current.closing_date }));
   const setIntakePayment = (index: number, payment: AccountingIntakePaymentDraft) => setDraft((current) => withUpdatedIntakeTotals({ ...current, intake_payments: current.intake_payments.map((item, itemIndex) => itemIndex === index ? payment : item) }));
   const removeIntakePayment = (index: number) => setDraft((current) => withUpdatedIntakeTotals({ ...current, intake_payments: current.intake_payments.filter((_, itemIndex) => itemIndex !== index) }));
-  const uploadDealSheet = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !onUploadDocument) return;
-    const path = await onUploadDocument(file);
-    setDraft((current) => ({ ...current, deal_sheet_name: file.name, deal_sheet_url: path, closing_file_name: file.name, closing_file_url: path }));
-  };
+  const setDealSheetFiles = (files: AccountingDocumentFile[]) => setDraft((current) => {
+    const first = files[0] || null;
+    return { ...current, deal_sheet_files: files, deal_sheet_name: first?.name || null, deal_sheet_url: first?.url || null, closing_file_name: first?.name || null, closing_file_url: first?.url || null };
+  });
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -361,13 +370,14 @@ function ClosingEditor({ closing, agents, onUploadDocument, onClose, onSave }: {
         <label className="full">Property address<input required value={draft.property_address} onChange={(event) => set("property_address", event.target.value)} placeholder="123 Main Street, Flushing, NY" /></label>
         <label>MLS #<input value={draft.mls_number || ""} onChange={(event) => set("mls_number", event.target.value || null)} placeholder="MLS number" /></label>
         <label>Transaction type<select value={draft.transaction_type} onChange={(event) => set("transaction_type", event.target.value as AccountingTransactionType)}>{transactionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <div className="full allocation-editor-list">
+        <div className="full allocation-editor-list intake-editor-list">
           {draft.intake_payments.map((payment, index) => <IntakePaymentEditorRow key={payment.id || index} payment={payment} onUploadDocument={onUploadDocument} onChange={(next) => setIntakePayment(index, next)} onRemove={() => removeIntakePayment(index)} />)}
           <button type="button" className="secondary-button" onClick={() => setDraft((current) => withUpdatedIntakeTotals({ ...current, intake_payments: [...current.intake_payments, emptyIntakePaymentDraft(current.intake_payments.length)] }))}><Plus size={15} />Add payment</button>
           <div className="upload-confirmation"><span>Intake total</span><strong>{formatMoney(draft.intake_payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0))}</strong></div>
         </div>
-        <label>Deal sheet upload<input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" disabled={!onUploadDocument} onChange={(event) => void uploadDealSheet(event)} /></label>
-        {draft.deal_sheet_name && <div className="upload-confirmation"><span>Deal sheet attached</span><strong>{draft.deal_sheet_name}</strong></div>}
+        <div className="full intake-documents-section">
+          <DocumentUploader label="Deal sheets" hint="Add one or more deal sheets, scans, or photos" accept=".pdf,.doc,.docx,image/*" files={effectiveDocumentFiles(draft.deal_sheet_files, draft.deal_sheet_name, draft.deal_sheet_url)} onUpload={onUploadDocument} onChange={setDealSheetFiles} />
+        </div>
         <label className="full">Notes<textarea rows={4} value={draft.notes || ""} onChange={(event) => set("notes", event.target.value || null)} placeholder="Internal notes for management review..." /></label>
       </div></section></div>
       <footer><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || !draft.intake_payments.length}>{saving ? "Saving..." : "Save intake"}</button></footer>
@@ -377,19 +387,45 @@ function ClosingEditor({ closing, agents, onUploadDocument, onClose, onSave }: {
 
 function IntakePaymentEditorRow({ payment, onUploadDocument, onChange, onRemove }: { payment: AccountingIntakePaymentDraft; onUploadDocument?: (file: File) => Promise<string>; onChange: (payment: AccountingIntakePaymentDraft) => void; onRemove: () => void }) {
   const update = (next: Partial<AccountingIntakePaymentDraft>) => onChange({ ...payment, ...next });
-  const uploadDocument = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !onUploadDocument) return;
-    const path = await onUploadDocument(file);
-    update({ document_name: file.name, document_url: path });
+  const setDocumentFiles = (files: AccountingDocumentFile[]) => {
+    const first = files[0] || null;
+    update({ document_files: files, document_name: first?.name || null, document_url: first?.url || null });
   };
   return <div className="allocation-editor-row intake-payment-row">
     <label>Payment method<select value={payment.payment_method} onChange={(event) => update({ payment_method: event.target.value as AccountingPaymentMethod })}>{paymentMethodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-    <label>Amount<input required type="number" min="0" step="0.01" value={payment.amount} onChange={(event) => update({ amount: Number(event.target.value || 0) })} /></label>
+    <label>Amount<input required type="text" inputMode="decimal" value={payment.amount} onChange={(event) => { const value = decimalInput(event.target.value); if (value !== null) update({ amount: value }); }} placeholder="Enter amount" /></label>
     <label>Reference / check number<input value={payment.reference_number || ""} onChange={(event) => update({ reference_number: event.target.value || null })} placeholder={payment.payment_method === "check" ? "Check #" : payment.payment_method === "wire" ? "Wire reference" : "Optional reference"} /></label>
-    <label>Payment document<input type="file" accept="image/*,.pdf" capture={payment.payment_method === "check" ? "environment" : undefined} disabled={!onUploadDocument} onChange={(event) => void uploadDocument(event)} /></label>
-    {payment.document_name && <div className="upload-confirmation"><span>Attached</span><strong>{payment.document_name}</strong></div>}
-    <button type="button" aria-label="Remove intake payment" onClick={onRemove}><X size={16} /></button>
+    <DocumentUploader className="payment-document-uploader" label="Payment documents" hint="Receipts, checks, wire confirmations, or photos" accept="image/*,.pdf" files={effectiveDocumentFiles(payment.document_files, payment.document_name, payment.document_url)} onUpload={onUploadDocument} onChange={setDocumentFiles} />
+    <button className="remove-payment-button" type="button" aria-label="Remove intake payment" onClick={onRemove}><X size={16} /></button>
+  </div>;
+}
+
+function DocumentUploader({ label, hint, accept, files, onUpload, onChange, className = "" }: { label: string; hint: string; accept: string; files: AccountingDocumentFile[]; onUpload?: (file: File) => Promise<string>; onChange: (files: AccountingDocumentFile[]) => void; className?: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const addFiles = async (selected: File[]) => {
+    if (!onUpload || !selected.length) return;
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(selected.map(async (file) => ({ name: file.name, url: await onUpload(file) })));
+      onChange([...files, ...uploaded]);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+  const onInputChange = (event: ChangeEvent<HTMLInputElement>) => void addFiles(Array.from(event.target.files || []));
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    void addFiles(Array.from(event.dataTransfer.files || []));
+  };
+  return <div className={`modern-file-uploader ${dragging ? "dragging" : ""} ${className}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+    <div className="modern-file-uploader-copy"><span>{label}</span><small>{hint}</small></div>
+    <input ref={inputRef} type="file" multiple accept={accept} disabled={!onUpload || uploading} onChange={onInputChange} />
+    <button type="button" className="file-picker-button" disabled={!onUpload || uploading} onClick={() => inputRef.current?.click()}><Upload size={16} />{uploading ? "Uploading…" : files.length ? "Add more" : "Choose files"}</button>
+    {files.length > 0 && <div className="uploaded-file-list">{files.map((file, index) => <div key={`${file.url}-${index}`}><FileText size={15} /><span title={file.name}>{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(files.filter((_, fileIndex) => fileIndex !== index))}><X size={14} /></button></div>)}</div>}
   </div>;
 }
 
@@ -520,7 +556,7 @@ function AllocationEditorRow({ allocation, payees, onUploadDocument, onChange, o
   return <div className="allocation-editor-row">
     <label>Payee<select required value={selectedPayee?.id || ""} onChange={(event) => choosePayee(event.target.value)}><option value="">Select payee</option>{payees.map((payee) => <option key={payee.id} value={payee.id}>{payee.payee}</option>)}</select></label>
     {selectedPayee && <div className="payee-info"><span>Name</span><strong>{selectedPayee.agent_name}</strong><small>{officeLabel(selectedPayee.office)} · Tax ID {selectedPayee.tax_id} · {selectedPayee.address}</small></div>}
-    <label>Net to agent<input type="number" min="0" step="0.01" value={allocation.net_to_agent} onChange={(event) => update({ net_to_agent: Number(event.target.value || 0) })} /></label>
+    <label>Net to agent<input type="text" inputMode="decimal" value={allocation.net_to_agent} onChange={(event) => { const value = decimalInput(event.target.value); if (value !== null) update({ net_to_agent: value }); }} placeholder="Enter amount" /></label>
     <label>Payment method<select value={allocation.payment_method || "check"} onChange={(event) => update({ payment_method: event.target.value as AccountingPaymentMethod })}>{paymentMethodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
     <label>Reference / check number<input value={allocation.check_number || ""} onChange={(event) => update({ check_number: event.target.value || null })} placeholder={allocation.payment_method === "check" ? "Agent check #" : "Optional reference"} /></label>
     <label>Payment document upload<input type="file" accept="image/*,.pdf" capture={allocation.payment_method === "check" ? "environment" : undefined} disabled={!onUploadDocument} onChange={(event) => void uploadCheckImage(event)} /></label>
@@ -585,11 +621,11 @@ function AccountingStatusBadge({ status }: { status: AccountingClosingStatus }) 
 
 function emptyClosingDraft(): AccountingClosingDraft {
   const today = new Date().toISOString().slice(0, 10);
-  return { office: "lin_pan_realty", property_address: "", mls_number: null, reception_date: today, check_amount: 0, check_number: null, check_image_name: null, check_image_url: null, deal_sheet_name: null, deal_sheet_url: null, closing_date: today, buyer: null, seller: null, transaction_type: "sale", gross_commission: 0, company_commission_income: 0, closing_file_name: null, closing_file_url: null, notes: null, status: "pending_review", approval_date: null, intake_payments: [emptyIntakePaymentDraft(0)], allocations: [] };
+  return { office: "lin_pan_realty", property_address: "", mls_number: null, reception_date: today, check_amount: 0, check_number: null, check_image_name: null, check_image_url: null, deal_sheet_name: null, deal_sheet_url: null, deal_sheet_files: [], closing_date: today, buyer: null, seller: null, transaction_type: "sale", gross_commission: 0, company_commission_income: 0, closing_file_name: null, closing_file_url: null, notes: null, status: "pending_review", approval_date: null, intake_payments: [emptyIntakePaymentDraft(0)], allocations: [] };
 }
 
 function emptyIntakePaymentDraft(sortOrder: number): AccountingIntakePaymentDraft {
-  return { payment_method: "check", amount: 0, reference_number: null, document_name: null, document_url: null, sort_order: sortOrder };
+  return { payment_method: "check", amount: "", reference_number: null, document_name: null, document_url: null, document_files: [], sort_order: sortOrder };
 }
 
 function emptyPayeeDraft(): AccountingPayeeDraft {
@@ -601,16 +637,22 @@ function toPayeeDraft(payee: AccountingPayee): AccountingPayeeDraft {
 }
 
 function toClosingDraft(closing: AccountingClosing): AccountingClosingDraft {
-  return { office: closing.office || "lin_pan_realty", property_address: closing.property_address, mls_number: closing.mls_number || null, reception_date: closing.reception_date || closing.closing_date, check_amount: intakeTotal(closing), check_number: closing.check_number || null, check_image_name: closing.check_image_name || null, check_image_url: closing.check_image_url || null, deal_sheet_name: closing.deal_sheet_name || closing.closing_file_name || null, deal_sheet_url: closing.deal_sheet_url || closing.closing_file_url || null, closing_date: closing.closing_date, buyer: closing.buyer, seller: closing.seller, transaction_type: closing.transaction_type, gross_commission: intakeTotal(closing), company_commission_income: closing.company_commission_income, closing_file_name: closing.closing_file_name, closing_file_url: closing.closing_file_url, notes: closing.notes, status: closing.status, approval_date: closing.approval_date, intake_payments: effectiveIntakePayments(closing).map(({ id, payment_method, amount, reference_number, document_name, document_url, sort_order }) => ({ id: id.startsWith("legacy-") ? undefined : id, payment_method, amount, reference_number, document_name, document_url, sort_order })), allocations: closing.allocations.map(({ id, agent_id, agent_name, payment_method, check_number, check_image_name, check_image_url, role, gross_commission, referral_fee, other_deductions, split_percentage, net_to_agent, team_leader_share, company_share, payment_status, paid_date, sort_order }) => ({ id, agent_id, agent_name, payment_method: payment_method || "check", check_number: check_number || null, check_image_name: check_image_name || null, check_image_url: check_image_url || null, role, gross_commission, referral_fee, other_deductions, split_percentage, net_to_agent, team_leader_share, company_share, payment_status, paid_date, sort_order })) };
+  return { office: closing.office || "lin_pan_realty", property_address: closing.property_address, mls_number: closing.mls_number || null, reception_date: closing.reception_date || closing.closing_date, check_amount: intakeTotal(closing), check_number: closing.check_number || null, check_image_name: closing.check_image_name || null, check_image_url: closing.check_image_url || null, deal_sheet_name: closing.deal_sheet_name || closing.closing_file_name || null, deal_sheet_url: closing.deal_sheet_url || closing.closing_file_url || null, deal_sheet_files: effectiveDocumentFiles(closing.deal_sheet_files, closing.deal_sheet_name || closing.closing_file_name, closing.deal_sheet_url || closing.closing_file_url), closing_date: closing.closing_date, buyer: closing.buyer, seller: closing.seller, transaction_type: closing.transaction_type, gross_commission: intakeTotal(closing), company_commission_income: closing.company_commission_income, closing_file_name: closing.closing_file_name, closing_file_url: closing.closing_file_url, notes: closing.notes, status: closing.status, approval_date: closing.approval_date, intake_payments: effectiveIntakePayments(closing).map(({ id, payment_method, amount, reference_number, document_name, document_url, document_files, sort_order }) => ({ id: id.startsWith("legacy-") ? undefined : id, payment_method, amount, reference_number, document_name, document_url, document_files: effectiveDocumentFiles(document_files, document_name, document_url), sort_order })), allocations: closing.allocations.map(({ id, agent_id, agent_name, payment_method, check_number, check_image_name, check_image_url, role, gross_commission, referral_fee, other_deductions, split_percentage, net_to_agent, team_leader_share, company_share, payment_status, paid_date, sort_order }) => ({ id, agent_id, agent_name, payment_method: payment_method || "check", check_number: check_number || null, check_image_name: check_image_name || null, check_image_url: check_image_url || null, role, gross_commission, referral_fee, other_deductions, split_percentage, net_to_agent, team_leader_share, company_share, payment_status, paid_date, sort_order })) };
 }
 
 function normalizeClosingDraft(draft: AccountingClosingDraft): AccountingClosingDraft {
-  const intakePayments = draft.intake_payments.map((payment, index) => ({ ...payment, amount: Number(payment.amount || 0), reference_number: payment.reference_number || null, document_name: payment.document_name || null, document_url: payment.document_url || null, sort_order: index }));
+  const intakePayments = draft.intake_payments.map((payment, index) => {
+    const documentFiles = effectiveDocumentFiles(payment.document_files, payment.document_name, payment.document_url).map(({ name, url }) => ({ name, url }));
+    const first = documentFiles[0] || null;
+    return { ...payment, amount: Number(payment.amount || 0), reference_number: payment.reference_number || null, document_name: first?.name || null, document_url: first?.url || null, document_files: documentFiles, sort_order: index };
+  });
   const checkAmount = intakePayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const allocations = draft.allocations.filter((allocation) => allocation.agent_name.trim()).map((allocation, index) => ({ ...calculateAllocation({ ...allocation, gross_commission: checkAmount, referral_fee: 0, other_deductions: 0, split_percentage: 0, team_leader_share: 0, company_share: 0 }), agent_name: allocation.agent_name.trim(), role: null, paid_date: allocation.paid_date || null, payment_status: allocation.paid_date ? "paid" as AccountingPaymentStatus : allocation.payment_status, sort_order: index }));
+  const allocations = draft.allocations.filter((allocation) => allocation.agent_name.trim()).map((allocation, index) => ({ ...calculateAllocation({ ...allocation, gross_commission: checkAmount, referral_fee: 0, other_deductions: 0, split_percentage: 0, net_to_agent: Number(allocation.net_to_agent || 0), team_leader_share: 0, company_share: 0 }), agent_name: allocation.agent_name.trim(), role: null, paid_date: allocation.paid_date || null, payment_status: allocation.paid_date ? "paid" as AccountingPaymentStatus : allocation.payment_status, sort_order: index }));
   const splitChecks = allocations.reduce((sum, allocation) => sum + Number(allocation.net_to_agent || 0), 0);
   const firstCheck = intakePayments.find((payment) => payment.payment_method === "check") || null;
-  return { ...draft, office: draft.office || "lin_pan_realty", mls_number: draft.mls_number || null, reception_date: draft.reception_date || draft.closing_date, check_amount: checkAmount, check_number: firstCheck?.reference_number || null, check_image_name: firstCheck?.document_name || null, check_image_url: firstCheck?.document_url || null, deal_sheet_name: draft.deal_sheet_name || draft.closing_file_name || null, deal_sheet_url: draft.deal_sheet_url || draft.closing_file_url || null, closing_date: draft.closing_date || draft.reception_date, buyer: draft.buyer || null, seller: draft.seller || null, closing_file_name: draft.deal_sheet_name || draft.closing_file_name || null, closing_file_url: draft.deal_sheet_url || draft.closing_file_url || null, notes: draft.notes || null, company_commission_income: Math.max(0, checkAmount - splitChecks), gross_commission: checkAmount, intake_payments: intakePayments, allocations };
+  const dealSheetFiles = effectiveDocumentFiles(draft.deal_sheet_files, draft.deal_sheet_name || draft.closing_file_name, draft.deal_sheet_url || draft.closing_file_url).map(({ name, url }) => ({ name, url }));
+  const firstDealSheet = dealSheetFiles[0] || null;
+  return { ...draft, office: draft.office || "lin_pan_realty", mls_number: draft.mls_number || null, reception_date: draft.reception_date || draft.closing_date, check_amount: checkAmount, check_number: firstCheck?.reference_number || null, check_image_name: firstCheck?.document_name || null, check_image_url: firstCheck?.document_url || null, deal_sheet_name: firstDealSheet?.name || null, deal_sheet_url: firstDealSheet?.url || null, deal_sheet_files: dealSheetFiles, closing_date: draft.closing_date || draft.reception_date, buyer: draft.buyer || null, seller: draft.seller || null, closing_file_name: firstDealSheet?.name || null, closing_file_url: firstDealSheet?.url || null, notes: draft.notes || null, company_commission_income: Math.max(0, checkAmount - splitChecks), gross_commission: checkAmount, intake_payments: intakePayments, allocations };
 }
 
 function withUpdatedIntakeTotals(draft: AccountingClosingDraft): AccountingClosingDraft {
@@ -619,11 +661,16 @@ function withUpdatedIntakeTotals(draft: AccountingClosingDraft): AccountingClosi
 }
 
 function agentAllocationDraft(agent: Agent | null, gross: number): AccountingAllocationDraft {
-  return calculateAllocation({ agent_id: agent?.id || null, agent_name: agent?.full_name || "", payment_method: "check", check_number: null, check_image_name: null, check_image_url: null, role: null, gross_commission: Number(gross || 0), referral_fee: 0, other_deductions: 0, split_percentage: 0, net_to_agent: 0, team_leader_share: 0, company_share: 0, payment_status: "unpaid", paid_date: null, sort_order: 0 });
+  return calculateAllocation({ agent_id: agent?.id || null, agent_name: agent?.full_name || "", payment_method: "check", check_number: null, check_image_name: null, check_image_url: null, role: null, gross_commission: Number(gross || 0), referral_fee: 0, other_deductions: 0, split_percentage: 0, net_to_agent: "", team_leader_share: 0, company_share: 0, payment_status: "unpaid", paid_date: null, sort_order: 0 });
 }
 
 function calculateAllocation(allocation: AccountingAllocationDraft): AccountingAllocationDraft {
   return allocation;
+}
+
+function decimalInput(value: string) {
+  const normalized = value.replace(/,/g, "").trim();
+  return /^\d*(?:\.\d{0,2})?$/.test(normalized) ? normalized : null;
 }
 
 function calculateSummary(closings: AccountingClosing[]) {
@@ -659,10 +706,16 @@ function effectiveIntakePayments(closing: AccountingClosing): AccountingIntakePa
     document_name: closing.check_image_name || null,
     document_url: closing.check_image_url || null,
     display_document_url: closing.display_check_image_url || null,
+    document_files: effectiveDocumentFiles([], closing.check_image_name, closing.check_image_url, closing.display_check_image_url),
     sort_order: 0,
     created_at: closing.created_at,
     updated_at: closing.updated_at,
   }];
+}
+
+function effectiveDocumentFiles(files: AccountingDocumentFile[] | null | undefined, legacyName?: string | null, legacyUrl?: string | null, legacyDisplayUrl?: string | null): AccountingDocumentFile[] {
+  if (Array.isArray(files) && files.length) return files.filter((file) => file?.url).map((file) => ({ name: file.name || "Document", url: file.url, display_url: file.display_url || null }));
+  return legacyUrl ? [{ name: legacyName || "Document", url: legacyUrl, display_url: legacyDisplayUrl || null }] : [];
 }
 
 function intakeTotal(closing: AccountingClosing) {
@@ -695,7 +748,9 @@ function officeLabel(value: AccountingOffice) {
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
+  const amount = Number(value || 0);
+  const hasCents = Math.abs(amount - Math.round(amount)) > Number.EPSILON;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 }).format(amount);
 }
 
 function formatDate(value: string) {
