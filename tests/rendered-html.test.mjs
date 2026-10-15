@@ -233,6 +233,40 @@ test("Listings page manages OpenHouse events and poster-ready property cards", a
   assert.match(migration, /employees_manage_open_house_items/);
 });
 
+test("calendar schedules agent showings and open houses with a private subscription feed", async () => {
+  const [calendarPanel, listingPanel, clerkPanel, route, migration, databaseTypes] = await Promise.all([
+    readFile(new URL("../app/calendar-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/calendar/[token]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261015110000_add_agent_calendar.sql", import.meta.url), "utf8"),
+    readFile(new URL("../lib/database.types.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /activeView === "calendar"/);
+  assert.match(listingPanel, /<CalendarDays size=\{18\} \/>Calendar/);
+  assert.match(calendarPanel, /Personal calendar/);
+  assert.match(calendarPanel, />Subscribe</);
+  assert.match(calendarPanel, /Showing/);
+  assert.match(calendarPanel, /Open house/);
+  assert.match(calendarPanel, /Scheduling conflict/);
+  assert.match(calendarPanel, /<label>Listing<select/);
+  assert.match(calendarPanel, /<label>Lead<select/);
+  assert.match(clerkPanel, /from\("calendar_events"\)/);
+  assert.match(clerkPanel, /from\("calendar_connections"\)/);
+  assert.match(clerkPanel, /event_type: "open_house"/);
+  assert.match(route, /get_calendar_feed/);
+  assert.match(route, /text\/calendar/);
+  assert.match(migration, /create table if not exists public\.calendar_connections/);
+  assert.match(migration, /create table if not exists public\.calendar_events/);
+  assert.match(migration, /prevent_calendar_overlap/);
+  assert.match(migration, /calendar_events_select_by_role/);
+  assert.match(migration, /assigned_agent_id = public\.current_agent_id\(\)/);
+  assert.match(migration, /get_calendar_feed/);
+  assert.match(databaseTypes, /calendar_connections/);
+  assert.match(databaseTypes, /calendar_events/);
+});
+
 test("content data support remains available without a Content navigation tab", async () => {
   const [contentPanel, listingPanel, clerkPanel, databaseTypes, migration, accountMigration, wechatMigration, accountsMigration] = await Promise.all([
     readFile(new URL("../app/content-panel.tsx", import.meta.url), "utf8"),

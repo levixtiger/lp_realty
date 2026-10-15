@@ -2,7 +2,7 @@
 
 import { Building2, CalendarDays, ChevronRight, Copy, Eye, Megaphone, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import type { Listing } from "./listings-panel";
+import type { Agent, Listing } from "./listings-panel";
 
 export type OpenHouseStatus = "draft" | "scheduled" | "published" | "archived";
 
@@ -37,6 +37,9 @@ export type OpenHouse = {
   subtitle: string | null;
   date_line: string;
   status: OpenHouseStatus;
+  assigned_agent_id: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   website_url: string | null;
@@ -55,6 +58,7 @@ export type OpenHouseDraft = Omit<OpenHouse, "id" | "created_by" | "updated_by" 
 type Props = {
   openHouses: OpenHouse[];
   listings: Listing[];
+  agents: Agent[];
   onSave: (draft: OpenHouseDraft, id?: string) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onNotice: (message: string) => void;
@@ -67,7 +71,7 @@ const statusOptions: { value: OpenHouseStatus; label: string }[] = [
   { value: "archived", label: "Archived" },
 ];
 
-export function OpenHousesPanel({ openHouses, listings, onSave, onDelete, onNotice }: Props) {
+export function OpenHousesPanel({ openHouses, listings, agents, onSave, onDelete, onNotice }: Props) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(openHouses[0]?.id || "");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -141,7 +145,7 @@ export function OpenHousesPanel({ openHouses, listings, onSave, onDelete, onNoti
       </section> : <section className="openhouse-preview-panel empty-detail"><Megaphone size={32} /><p>Create an OpenHouse event to preview a poster.</p></section>}
     </div>
 
-    {editor && <OpenHouseEditor event={editor === "new" ? undefined : editor} listings={listings} onClose={() => setEditor(null)} onSave={save} />}
+    {editor && <OpenHouseEditor event={editor === "new" ? undefined : editor} listings={listings} agents={agents} onClose={() => setEditor(null)} onSave={save} />}
     {posterMode && selected && <div className="poster-mode-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPosterMode(false); }}>
       <div className="poster-mode-shell">
         <div className="poster-mode-toolbar"><span>Screenshot-ready poster preview</span><button className="secondary-button" onClick={() => setPosterMode(false)}><X size={15} />Close</button></div>
@@ -186,7 +190,7 @@ function PosterCard({ item }: { item: OpenHouseItem }) {
   </section>;
 }
 
-function OpenHouseEditor({ event, listings, onClose, onSave }: { event?: OpenHouse; listings: Listing[]; onClose: () => void; onSave: (draft: OpenHouseDraft, id?: string) => Promise<boolean> }) {
+function OpenHouseEditor({ event, listings, agents, onClose, onSave }: { event?: OpenHouse; listings: Listing[]; agents: Agent[]; onClose: () => void; onSave: (draft: OpenHouseDraft, id?: string) => Promise<boolean> }) {
   const [draft, setDraft] = useState<OpenHouseDraft>(() => event ? toDraft(event) : emptyOpenHouseDraft());
   const [listingId, setListingId] = useState(listings[0]?.id || "");
   const [saving, setSaving] = useState(false);
@@ -216,6 +220,9 @@ function OpenHouseEditor({ event, listings, onClose, onSave }: { event?: OpenHou
           <label className="full">Poster date line<input required value={draft.date_line} onChange={(event) => set("date_line", event.target.value.toUpperCase())} placeholder="SATURDAY, AUGUST 15 / SUNDAY, AUGUST 16" /></label>
           <label>Subtitle<input value={draft.subtitle || ""} onChange={(event) => set("subtitle", event.target.value || null)} /></label>
           <label>Status<select value={draft.status} onChange={(event) => set("status", event.target.value as OpenHouseStatus)}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label>Assigned agent<select value={draft.assigned_agent_id || ""} onChange={(event) => set("assigned_agent_id", event.target.value || null)}><option value="">Unassigned</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label>
+          <label>Starts<input type="datetime-local" value={toLocalInput(draft.starts_at)} onChange={(event) => set("starts_at", fromLocalInput(event.target.value))} /></label>
+          <label>Ends<input type="datetime-local" value={toLocalInput(draft.ends_at)} onChange={(event) => set("ends_at", fromLocalInput(event.target.value))} /></label>
           <label>Contact name<input value={draft.contact_name || ""} onChange={(event) => set("contact_name", event.target.value || null)} /></label>
           <label>Contact phone<input value={draft.contact_phone || ""} onChange={(event) => set("contact_phone", event.target.value || null)} /></label>
           <label>Website<input value={draft.website_url || ""} onChange={(event) => set("website_url", event.target.value || null)} /></label>
@@ -260,11 +267,11 @@ function OpenHouseStatusBadge({ status }: { status: OpenHouseStatus }) {
 }
 
 function emptyOpenHouseDraft(): OpenHouseDraft {
-  return { title: "Weekend Open House", subtitle: "Exceptional Service and Results", date_line: "SATURDAY / SUNDAY", status: "draft", contact_name: null, contact_phone: "516-693-9888", website_url: "www.linpanrealty.com", notes: null, items: [] };
+  return { title: "Weekend Open House", subtitle: "Exceptional Service and Results", date_line: "SATURDAY / SUNDAY", status: "draft", assigned_agent_id: null, starts_at: null, ends_at: null, contact_name: null, contact_phone: "516-693-9888", website_url: "www.linpanrealty.com", notes: null, items: [] };
 }
 
 function toDraft(event: OpenHouse): OpenHouseDraft {
-  return { title: event.title, subtitle: event.subtitle, date_line: event.date_line, status: event.status, contact_name: event.contact_name, contact_phone: event.contact_phone, website_url: event.website_url, notes: event.notes, items: event.items.map(({ id, open_house_id: _openHouseId, created_at: _createdAt, updated_at: _updatedAt, display_image_url: _displayImageUrl, ...item }) => ({ ...item, id })) };
+  return { title: event.title, subtitle: event.subtitle, date_line: event.date_line, status: event.status, assigned_agent_id: event.assigned_agent_id || null, starts_at: event.starts_at || null, ends_at: event.ends_at || null, contact_name: event.contact_name, contact_phone: event.contact_phone, website_url: event.website_url, notes: event.notes, items: event.items.map(({ id, open_house_id: _openHouseId, created_at: _createdAt, updated_at: _updatedAt, display_image_url: _displayImageUrl, ...item }) => ({ ...item, id })) };
 }
 
 function itemFromListing(listing: Listing, sortOrder: number): OpenHouseItemDraft {
@@ -292,3 +299,6 @@ function itemFromListing(listing: Listing, sortOrder: number): OpenHouseItemDraf
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value));
 }
+
+function toLocalInput(value: string | null) { if (!value) return ""; const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+function fromLocalInput(value: string) { return value ? new Date(value).toISOString() : null; }

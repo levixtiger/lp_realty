@@ -15,6 +15,7 @@ import {
 import type { ContentAccount, ContentAccountDraft, ContentVideo, ContentVideoDraft } from "./content-panel";
 import type { InteractionDraft, Lead, LeadDraft, LeadInteraction } from "./leads-panel";
 import type { OpenHouse, OpenHouseDraft } from "./open-houses-panel";
+import type { CalendarConnection, CalendarEvent, CalendarEventDraft } from "./calendar-panel";
 
 type DbClient = SupabaseClient<Database>;
 const LISTING_IMAGE_BUCKET = "listing-images";
@@ -48,6 +49,8 @@ export function AuthenticatedPanel() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadInteractions, setLeadInteractions] = useState<LeadInteraction[]>([]);
   const [openHouses, setOpenHouses] = useState<OpenHouse[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [calendarConnections, setCalendarConnections] = useState<CalendarConnection[]>([]);
   const [contentVideos, setContentVideos] = useState<ContentVideo[]>([]);
   const [contentAccounts, setContentAccounts] = useState<ContentAccount[]>([]);
   const [accountingClosings, setAccountingClosings] = useState<AccountingClosing[]>([]);
@@ -102,7 +105,7 @@ export function AuthenticatedPanel() {
   const load = useCallback(async () => {
     if (!supabase) return;
     setError("");
-    const [listingResult, agentResult, leadResult, interactionResult, openHouseResult, contentResult, contentAccountResult, accountingClosingResult, accountingRuleResult, accountingPayeeResult, accessRequestResult, databaseRoleResult] = await Promise.all([
+    const [listingResult, agentResult, leadResult, interactionResult, openHouseResult, calendarEventResult, calendarConnectionResult, contentResult, contentAccountResult, accountingClosingResult, accountingRuleResult, accountingPayeeResult, accessRequestResult, databaseRoleResult] = await Promise.all([
       withFreshTokenRetry(() => supabase
         .from("listings")
         .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)")
@@ -112,6 +115,8 @@ export function AuthenticatedPanel() {
       withFreshTokenRetry(() => supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), listing_links:lead_listings(listing_id)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("lead_interactions").select("*").order("happened_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("open_houses").select("*, items:open_house_items(*)").is("deleted_at", null).order("updated_at", { ascending: false })),
+      withFreshTokenRetry(() => supabase.from("calendar_events").select("*").is("deleted_at", null).order("starts_at")),
+      withFreshTokenRetry(() => supabase.from("calendar_connections").select("*").order("created_at")),
       withFreshTokenRetry(() => supabase.from("content_videos").select("*, links:content_video_links(*), listing:listings(id,slug,title,address_line_1,address_line_2,city,state,postal_code,property_type,offering_type,asking_price,building_area_sqft,heating,annual_tax,common_charge,description,open_house,status,assigned_agent_id,sold_by_agent_id,sold_at,image_urls,source_url,published,created_by,updated_by,created_at,updated_at,deleted_at), agent:agents(id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("content_accounts").select("*").is("deleted_at", null).order("platform").order("sort_order").order("account_name")),
       withFreshTokenRetry(() => supabase.from("accounting_closings").select("*, intake_payments:accounting_intake_payments(*), allocations:accounting_allocations(*), audit_entries:accounting_audit_entries(*)").is("deleted_at", null).order("reception_date", { ascending: false })),
@@ -126,15 +131,17 @@ export function AuthenticatedPanel() {
     }
 
     const openHouseDatabasePending = Boolean(openHouseResult.error?.message?.includes("open_houses") || openHouseResult.error?.message?.includes("open_house_items"));
+    const calendarDatabasePending = Boolean(calendarEventResult.error?.message?.includes("calendar_events") || calendarConnectionResult.error?.message?.includes("calendar_connections"));
     const contentVideoDatabasePending = Boolean(contentResult.error?.message?.includes("content_videos") || contentResult.error?.message?.includes("content_video_links"));
     const contentAccountDatabasePending = Boolean(contentAccountResult.error?.message?.includes("content_accounts"));
     const accountingDatabasePending = Boolean(accountingClosingResult.error?.message?.includes("accounting_") || accountingRuleResult.error?.message?.includes("accounting_") || accountingPayeeResult.error?.message?.includes("accounting_"));
     const accessRequestDatabasePending = isMissingTableError(accessRequestResult.error, "access_requests");
 
-    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error || (openHouseResult.error && !openHouseDatabasePending) || (contentResult.error && !contentVideoDatabasePending) || (contentAccountResult.error && !contentAccountDatabasePending) || (accountingClosingResult.error && !accountingDatabasePending) || (accountingRuleResult.error && !accountingDatabasePending) || (accountingPayeeResult.error && !accountingDatabasePending) || (accessRequestResult.error && !accessRequestDatabasePending)) {
-      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || openHouseResult.error?.message || contentResult.error?.message || contentAccountResult.error?.message || accountingClosingResult.error?.message || accountingRuleResult.error?.message || accountingPayeeResult.error?.message || accessRequestResult.error?.message || "Unable to load workspace data.");
+    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error || (openHouseResult.error && !openHouseDatabasePending) || (calendarEventResult.error && !calendarDatabasePending) || (calendarConnectionResult.error && !calendarDatabasePending) || (contentResult.error && !contentVideoDatabasePending) || (contentAccountResult.error && !contentAccountDatabasePending) || (accountingClosingResult.error && !accountingDatabasePending) || (accountingRuleResult.error && !accountingDatabasePending) || (accountingPayeeResult.error && !accountingDatabasePending) || (accessRequestResult.error && !accessRequestDatabasePending)) {
+      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || openHouseResult.error?.message || calendarEventResult.error?.message || calendarConnectionResult.error?.message || contentResult.error?.message || contentAccountResult.error?.message || accountingClosingResult.error?.message || accountingRuleResult.error?.message || accountingPayeeResult.error?.message || accessRequestResult.error?.message || "Unable to load workspace data.");
     } else {
       if (openHouseDatabasePending) setError("OpenHouse database migration is ready but has not been applied to Supabase yet.");
+      if (calendarDatabasePending) setError("Calendar database migration is ready but has not been applied to Supabase yet.");
       if (contentVideoDatabasePending || contentAccountDatabasePending) setError("Content database migration is ready but has not been applied to Supabase yet.");
       if (accountingDatabasePending) setError("Accounting database migration is ready but has not been applied to Supabase yet.");
       if (accessRequestDatabasePending) setError("Access request database migration is ready but has not been applied to Supabase yet.");
@@ -187,6 +194,8 @@ export function AuthenticatedPanel() {
           .sort((a, b) => a.sort_order - b.sort_order)
           .map((item) => ({ ...item, display_image_url: item.image_url ? (isExternalImage(item.image_url) ? item.image_url : openHouseImageUrls.get(item.image_url) || null) : null })),
       })));
+      setCalendarEvents(calendarDatabasePending ? [] : (calendarEventResult.data || []) as unknown as CalendarEvent[]);
+      setCalendarConnections(calendarDatabasePending ? [] : (calendarConnectionResult.data || []) as unknown as CalendarConnection[]);
       setContentVideos(contentVideoDatabasePending ? [] : ((contentResult.data || []) as unknown as ContentVideo[]).map((video) => ({
         ...video,
         links: (video.links || []).slice().sort((a, b) => a.sort_order - b.sort_order),
@@ -457,6 +466,34 @@ export function AuthenticatedPanel() {
       }))));
       if (insertResult.error) { setError(insertResult.error.message); return false; }
     }
+    const existingCalendarResult = await withFreshTokenRetry(() => supabase.from("calendar_events").select("id").eq("open_house_id", openHouseId).is("deleted_at", null).maybeSingle());
+    if (existingCalendarResult.error) { setError(existingCalendarResult.error.message); return false; }
+    if (eventDraft.assigned_agent_id && eventDraft.starts_at && eventDraft.ends_at) {
+      const firstProperty = items[0];
+      const calendarPayload = {
+        title: eventDraft.title,
+        event_type: "open_house",
+        status: eventDraft.status === "archived" ? "completed" : "scheduled",
+        assigned_agent_id: eventDraft.assigned_agent_id,
+        listing_id: firstProperty?.listing_id || null,
+        lead_id: null,
+        open_house_id: openHouseId,
+        starts_at: eventDraft.starts_at,
+        ends_at: eventDraft.ends_at,
+        timezone: "America/New_York",
+        location: firstProperty ? `${firstProperty.address_line_1}, ${firstProperty.city}, ${firstProperty.state} ${firstProperty.postal_code}` : null,
+        notes: eventDraft.notes || null,
+        updated_by: user.id,
+        deleted_at: null,
+      };
+      const calendarResult = existingCalendarResult.data
+        ? await withFreshTokenRetry(() => supabase.from("calendar_events").update(calendarPayload).eq("id", existingCalendarResult.data.id))
+        : await withFreshTokenRetry(() => supabase.from("calendar_events").insert({ ...calendarPayload, created_by: user.id }));
+      if (calendarResult.error) { setError(calendarResult.error.message); return false; }
+    } else if (existingCalendarResult.data) {
+      const calendarResult = await withFreshTokenRetry(() => supabase.from("calendar_events").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", existingCalendarResult.data.id));
+      if (calendarResult.error) { setError(calendarResult.error.message); return false; }
+    }
     await load();
     return true;
   };
@@ -465,6 +502,45 @@ export function AuthenticatedPanel() {
     if (!supabase || !user) return false;
     const { error: deleteError } = await withFreshTokenRetry(() => supabase.from("open_houses").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", id));
     if (deleteError) { setError(deleteError.message); return false; }
+    await load();
+    return true;
+  };
+
+  const saveCalendarEvent = async (draft: CalendarEventDraft, id?: string) => {
+    if (!supabase || !user) return false;
+    const scopedDraft = isAgentAccess && currentAgent ? { ...draft, assigned_agent_id: currentAgent.id } : draft;
+    const payload = { ...scopedDraft, listing_id: scopedDraft.listing_id || null, lead_id: scopedDraft.lead_id || null, open_house_id: scopedDraft.open_house_id || null, location: scopedDraft.location || null, notes: scopedDraft.notes || null, updated_by: user.id, deleted_at: null };
+    const result = id
+      ? await withFreshTokenRetry(() => supabase.from("calendar_events").update(payload).eq("id", id))
+      : await withFreshTokenRetry(() => supabase.from("calendar_events").insert({ ...payload, created_by: user.id }));
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
+  const deleteCalendarEvent = async (id: string) => {
+    if (!supabase || !user) return false;
+    const result = await withFreshTokenRetry(() => supabase.from("calendar_events").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", id));
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
+  const connectCalendar = async () => {
+    if (!supabase || !user || !currentAgent) return false;
+    const existing = calendarConnections.find((connection) => connection.agent_id === currentAgent.id);
+    const result = existing
+      ? await withFreshTokenRetry(() => supabase.from("calendar_connections").update({ enabled: true, updated_by: user.id }).eq("id", existing.id))
+      : await withFreshTokenRetry(() => supabase.from("calendar_connections").insert({ agent_id: currentAgent.id, created_by: user.id, updated_by: user.id }));
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
+  const disconnectCalendar = async (id: string) => {
+    if (!supabase || !user) return false;
+    const result = await withFreshTokenRetry(() => supabase.from("calendar_connections").update({ enabled: false, updated_by: user.id }).eq("id", id));
+    if (result.error) { setError(result.error.message); return false; }
     await load();
     return true;
   };
@@ -802,6 +878,8 @@ export function AuthenticatedPanel() {
       initialLeads={visibleLeads}
       initialLeadInteractions={visibleLeadInteractions}
       initialOpenHouses={isAgentAccess ? [] : openHouses}
+      initialCalendarEvents={calendarEvents}
+      initialCalendarConnections={calendarConnections}
       initialContentVideos={isAgentAccess ? [] : contentVideos}
       initialContentAccounts={contentAccounts}
       initialAccountingClosings={visibleAccountingClosings}
@@ -809,6 +887,7 @@ export function AuthenticatedPanel() {
       initialAccountingPayees={visibleAccountingPayees}
       initialAccessRequests={isAccountingManager ? accessRequests : []}
       accountingAccessRole={accountingAccessRole}
+      currentAgentId={currentAgent?.id || null}
       error={error}
       accountSlot={<UserButton />}
       onSave={save}
@@ -821,6 +900,10 @@ export function AuthenticatedPanel() {
       onAddLeadInteraction={addLeadInteraction}
       onSaveOpenHouse={saveOpenHouse}
       onDeleteOpenHouse={deleteOpenHouse}
+      onSaveCalendarEvent={saveCalendarEvent}
+      onDeleteCalendarEvent={deleteCalendarEvent}
+      onConnectCalendar={connectCalendar}
+      onDisconnectCalendar={disconnectCalendar}
       onSaveContentVideo={saveContentVideo}
       onDeleteContentVideo={deleteContentVideo}
       onSaveContentAccount={saveContentAccount}

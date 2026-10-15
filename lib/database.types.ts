@@ -46,10 +46,10 @@ export type Database = {
         Relationships: [{ foreignKeyName: "lead_interactions_lead_id_fkey"; columns: ["lead_id"]; isOneToOne: false; referencedRelation: "leads"; referencedColumns: ["id"] }];
       };
       open_houses: {
-        Row: { id: string; title: string; subtitle: string | null; date_line: string; status: string; contact_name: string | null; contact_phone: string | null; website_url: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
-        Insert: { id?: string; title: string; subtitle?: string | null; date_line: string; status?: string; contact_name?: string | null; contact_phone?: string | null; website_url?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Row: { id: string; title: string; subtitle: string | null; date_line: string; status: string; assigned_agent_id: string | null; starts_at: string | null; ends_at: string | null; contact_name: string | null; contact_phone: string | null; website_url: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; title: string; subtitle?: string | null; date_line: string; status?: string; assigned_agent_id?: string | null; starts_at?: string | null; ends_at?: string | null; contact_name?: string | null; contact_phone?: string | null; website_url?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["open_houses"]["Insert"]>;
-        Relationships: [];
+        Relationships: [{ foreignKeyName: "open_houses_assigned_agent_id_fkey"; columns: ["assigned_agent_id"]; isOneToOne: false; referencedRelation: "agents"; referencedColumns: ["id"] }];
       };
       open_house_items: {
         Row: { id: string; open_house_id: string; listing_id: string | null; sort_order: number; title: string; address_line_1: string; city: string; state: string; postal_code: string; price: number | null; bedrooms: string | null; bathrooms: string | null; property_type: string | null; image_url: string | null; price_label: string; event_day_label: string; time_label: string; appointment_only: boolean; badge: string | null; created_at: string; updated_at: string };
@@ -58,6 +58,23 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "open_house_items_open_house_id_fkey"; columns: ["open_house_id"]; isOneToOne: false; referencedRelation: "open_houses"; referencedColumns: ["id"] },
           { foreignKeyName: "open_house_items_listing_id_fkey"; columns: ["listing_id"]; isOneToOne: false; referencedRelation: "listings"; referencedColumns: ["id"] }
+        ];
+      };
+      calendar_connections: {
+        Row: { id: string; agent_id: string; feed_token: string; provider: string; timezone: string; enabled: boolean; created_by: string; updated_by: string; created_at: string; updated_at: string };
+        Insert: { id?: string; agent_id: string; feed_token?: string; provider?: string; timezone?: string; enabled?: boolean; created_by: string; updated_by: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["calendar_connections"]["Insert"]>;
+        Relationships: [{ foreignKeyName: "calendar_connections_agent_id_fkey"; columns: ["agent_id"]; isOneToOne: true; referencedRelation: "agents"; referencedColumns: ["id"] }];
+      };
+      calendar_events: {
+        Row: { id: string; title: string; event_type: string; status: string; assigned_agent_id: string; listing_id: string | null; lead_id: string | null; open_house_id: string | null; starts_at: string; ends_at: string; timezone: string; location: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; title: string; event_type?: string; status?: string; assigned_agent_id: string; listing_id?: string | null; lead_id?: string | null; open_house_id?: string | null; starts_at: string; ends_at: string; timezone?: string; location?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Update: Partial<Database["public"]["Tables"]["calendar_events"]["Insert"]>;
+        Relationships: [
+          { foreignKeyName: "calendar_events_assigned_agent_id_fkey"; columns: ["assigned_agent_id"]; isOneToOne: false; referencedRelation: "agents"; referencedColumns: ["id"] },
+          { foreignKeyName: "calendar_events_listing_id_fkey"; columns: ["listing_id"]; isOneToOne: false; referencedRelation: "listings"; referencedColumns: ["id"] },
+          { foreignKeyName: "calendar_events_lead_id_fkey"; columns: ["lead_id"]; isOneToOne: false; referencedRelation: "leads"; referencedColumns: ["id"] },
+          { foreignKeyName: "calendar_events_open_house_id_fkey"; columns: ["open_house_id"]; isOneToOne: false; referencedRelation: "open_houses"; referencedColumns: ["id"] },
         ];
       };
       content_videos: {
@@ -136,6 +153,10 @@ export type Database = {
       get_access_requests: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Tables"]["access_requests"]["Row"][];
+      };
+      get_calendar_feed: {
+        Args: { calendar_token: string };
+        Returns: { id: string; title: string; event_type: string; status: string; starts_at: string; ends_at: string; timezone: string; location: string | null; notes: string | null; updated_at: string }[];
       };
     };
     Enums: { [_ in never]: never };

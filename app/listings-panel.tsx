@@ -3,6 +3,7 @@
 import {
   Archive,
   Building2,
+  CalendarDays,
   Check,
   ChevronRight,
   CircleUserRound,
@@ -28,6 +29,7 @@ import type { AccessRequest } from "./clerk-panel";
 import type { ContentAccount, ContentAccountDraft, ContentVideo, ContentVideoDraft } from "./content-panel";
 import { LeadsPanel, type InteractionDraft, type Lead, type LeadDraft, type LeadInteraction } from "./leads-panel";
 import { OpenHousesPanel, type OpenHouse, type OpenHouseDraft } from "./open-houses-panel";
+import { CalendarPanel, type CalendarConnection, type CalendarEvent, type CalendarEventDraft } from "./calendar-panel";
 
 export type Agent = {
   id: string;
@@ -150,6 +152,8 @@ type Props = {
   initialLeads?: Lead[];
   initialLeadInteractions?: LeadInteraction[];
   initialOpenHouses?: OpenHouse[];
+  initialCalendarEvents?: CalendarEvent[];
+  initialCalendarConnections?: CalendarConnection[];
   initialContentVideos?: ContentVideo[];
   initialContentAccounts?: ContentAccount[];
   initialAccountingClosings?: AccountingClosing[];
@@ -157,6 +161,7 @@ type Props = {
   initialAccountingPayees?: AccountingPayee[];
   initialAccessRequests?: AccessRequest[];
   accountingAccessRole?: AccountingAccessRole;
+  currentAgentId?: string | null;
   accountSlot?: ReactNode;
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
@@ -169,6 +174,10 @@ type Props = {
   onAddLeadInteraction?: (leadId: string, draft: InteractionDraft) => Promise<boolean>;
   onSaveOpenHouse?: (draft: OpenHouseDraft, id?: string) => Promise<boolean>;
   onDeleteOpenHouse?: (id: string) => Promise<boolean>;
+  onSaveCalendarEvent?: (draft: CalendarEventDraft, id?: string) => Promise<boolean>;
+  onDeleteCalendarEvent?: (id: string) => Promise<boolean>;
+  onConnectCalendar?: () => Promise<boolean>;
+  onDisconnectCalendar?: (id: string) => Promise<boolean>;
   onSaveContentVideo?: (draft: ContentVideoDraft, id?: string) => Promise<boolean>;
   onDeleteContentVideo?: (id: string) => Promise<boolean>;
   onSaveContentAccount?: (draft: ContentAccountDraft, id?: string) => Promise<boolean>;
@@ -183,19 +192,21 @@ type Props = {
   onReviewAccessRequest?: (request: AccessRequest, status: "approved" | "rejected", approvedRole: "agent" | "operator" | null) => Promise<boolean>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialContentVideos, initialContentAccounts, initialAccountingClosings, initialAccountingRules, initialAccountingPayees, initialAccessRequests, accountingAccessRole = "manager", accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveContentVideo, onDeleteContentVideo, onSaveContentAccount, onDeleteContentAccount, onSaveAccountingClosing, onDeleteAccountingClosing, onSaveAccountingRule, onDeleteAccountingRule, onSaveAccountingPayee, onDeleteAccountingPayee, onUploadAccountingDocument, onReviewAccessRequest }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialCalendarEvents, initialCalendarConnections, initialContentVideos, initialContentAccounts, initialAccountingClosings, initialAccountingRules, initialAccountingPayees, initialAccessRequests, accountingAccessRole = "manager", currentAgentId = null, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveCalendarEvent, onDeleteCalendarEvent, onConnectCalendar, onDisconnectCalendar, onSaveContentVideo, onDeleteContentVideo, onSaveContentAccount, onDeleteContentAccount, onSaveAccountingClosing, onDeleteAccountingClosing, onSaveAccountingRule, onDeleteAccountingRule, onSaveAccountingPayee, onDeleteAccountingPayee, onUploadAccountingDocument, onReviewAccessRequest }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
   const [leads, setLeads] = useState(initialLeads || []);
   const [leadInteractions, setLeadInteractions] = useState(initialLeadInteractions || []);
   const [openHouses, setOpenHouses] = useState(initialOpenHouses || []);
+  const [calendarEvents, setCalendarEvents] = useState(initialCalendarEvents || []);
+  const [calendarConnections, setCalendarConnections] = useState(initialCalendarConnections || []);
   const [contentVideos, setContentVideos] = useState(initialContentVideos || []);
   const [contentAccounts, setContentAccounts] = useState(initialContentAccounts || []);
   const [accountingClosings, setAccountingClosings] = useState(initialAccountingClosings || []);
   const [accountingRules, setAccountingRules] = useState(initialAccountingRules || []);
   const [accountingPayees, setAccountingPayees] = useState(initialAccountingPayees || []);
   const [accessRequests, setAccessRequests] = useState(initialAccessRequests || []);
-  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "accounting" | "access">("listings");
+  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "calendar" | "accounting" | "access">("listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [listingDetailOpen, setListingDetailOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -225,6 +236,8 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
   useEffect(() => { if (initialLeads) setLeads(initialLeads); }, [initialLeads]);
   useEffect(() => { if (initialLeadInteractions) setLeadInteractions(initialLeadInteractions); }, [initialLeadInteractions]);
   useEffect(() => { if (initialOpenHouses) setOpenHouses(initialOpenHouses); }, [initialOpenHouses]);
+  useEffect(() => { if (initialCalendarEvents) setCalendarEvents(initialCalendarEvents); }, [initialCalendarEvents]);
+  useEffect(() => { if (initialCalendarConnections) setCalendarConnections(initialCalendarConnections); }, [initialCalendarConnections]);
   useEffect(() => { if (initialContentVideos) setContentVideos(initialContentVideos); }, [initialContentVideos]);
   useEffect(() => { if (initialContentAccounts) setContentAccounts(initialContentAccounts); }, [initialContentAccounts]);
   useEffect(() => { if (initialAccountingClosings) setAccountingClosings(initialAccountingClosings); }, [initialAccountingClosings]);
@@ -405,6 +418,33 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
     return true;
   };
 
+  const saveCalendarEvent = async (draft: CalendarEventDraft, id?: string) => {
+    if (mode === "live" && onSaveCalendarEvent) return onSaveCalendarEvent(draft, id);
+    const assignedAgent = agents.find((agent) => agent.id === draft.assigned_agent_id) || null;
+    if (id) setCalendarEvents((current) => current.map((event) => event.id === id ? { ...event, ...draft, assigned_agent: assignedAgent, updated_at: new Date().toISOString() } : event));
+    else setCalendarEvents((current) => [{ ...draft, id: crypto.randomUUID(), created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), assigned_agent: assignedAgent }, ...current]);
+    return true;
+  };
+
+  const deleteCalendarEvent = async (id: string) => {
+    if (mode === "live" && onDeleteCalendarEvent) return onDeleteCalendarEvent(id);
+    setCalendarEvents((current) => current.filter((event) => event.id !== id));
+    return true;
+  };
+
+  const connectCalendar = async () => {
+    if (mode === "live" && onConnectCalendar) return onConnectCalendar();
+    if (!currentAgentId) return false;
+    setCalendarConnections((current) => [...current.filter((connection) => connection.agent_id !== currentAgentId), { id: crypto.randomUUID(), agent_id: currentAgentId, feed_token: crypto.randomUUID(), provider: "ical", timezone: "America/New_York", enabled: true, created_by: "preview", updated_by: "preview", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
+    return true;
+  };
+
+  const disconnectCalendar = async (id: string) => {
+    if (mode === "live" && onDisconnectCalendar) return onDisconnectCalendar(id);
+    setCalendarConnections((current) => current.map((connection) => connection.id === id ? { ...connection, enabled: false } : connection));
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
@@ -413,6 +453,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
           <button type="button" className={activeView === "listings" ? "active" : ""} onClick={() => { setActiveView("listings"); setMobileNav(false); }}><Building2 size={18} />Listings<span className="nav-count">{listings.length}</span></button>
           {canViewAgents && <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>}
           <button type="button" className={activeView === "leads" ? "active" : ""} onClick={() => { setActiveView("leads"); setMobileNav(false); }}><CircleUserRound size={18} />Leads<span className="nav-count">{leads.length}</span></button>
+          <button type="button" className={activeView === "calendar" ? "active" : ""} onClick={() => { setActiveView("calendar"); setMobileNav(false); }}><CalendarDays size={18} />Calendar<span className="nav-count">{calendarEvents.filter((event) => event.status === "scheduled").length}</span></button>
           <button type="button" className={activeView === "accounting" ? "active" : ""} onClick={() => { setActiveView("accounting"); setMobileNav(false); }}><CircleDollarSign size={18} />Accounting<span className="nav-count">{accountingClosings.length}</span></button>
           {isManagerAccess && <button type="button" className={activeView === "access" ? "active" : ""} onClick={() => { setActiveView("access"); setMobileNav(false); }}><Settings size={18} />Access<span className="nav-count">{accessRequests.filter((request) => request.status === "pending").length}</span></button>}
         </nav>
@@ -424,7 +465,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "access" ? "Access" : "Accounting"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "access" ? "Access requests" : "Accounting"}</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "calendar" ? "Calendar" : activeView === "access" ? "Access" : "Accounting"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "calendar" ? "Team calendar" : activeView === "access" ? "Access requests" : "Accounting"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
@@ -494,8 +535,8 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
 
         {!isAgentAccess && <section className="embedded-openhouses">
           <div className="embedded-section-head"><p className="eyebrow">Listing marketing</p><h2>OpenHouse events</h2><span>Create poster-ready open house events from listing inventory.</span></div>
-          <OpenHousesPanel openHouses={openHouses} listings={listings} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} />
-        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} listings={listings} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
+          <OpenHousesPanel openHouses={openHouses} listings={listings} agents={agents} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} />
+        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} listings={listings} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "calendar" ? <CalendarPanel events={calendarEvents} connections={calendarConnections} agents={agents} listings={listings} leads={leads} currentAgentId={currentAgentId} canManageAll={!isAgentAccess} onSave={saveCalendarEvent} onDelete={deleteCalendarEvent} onConnect={connectCalendar} onDisconnect={disconnectCalendar} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}
