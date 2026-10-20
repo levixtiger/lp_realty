@@ -40,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     "X-PUBLISHED-TTL:PT15M",
     ...events.flatMap((event) => [
       "BEGIN:VEVENT",
-      `UID:${event.id}@admin.linpanrealty.com`,
+      `UID:${event.id}@members.linpanrealty.com`,
       `DTSTAMP:${icalDate(event.updated_at)}`,
       `DTSTART:${icalDate(event.starts_at)}`,
       `DTEND:${icalDate(event.ends_at)}`,

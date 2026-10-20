@@ -190,4 +190,4 @@ function formatEventDate(start: string, end: string) { const starts = new Date(s
 function toLocalInput(value: string) { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
 function fromLocalInput(value: string) { return value ? new Date(value).toISOString() : ""; }
 function listingAddress(listing: Listing) { return `${listing.address_line_1}${listing.address_line_2 ? ` ${listing.address_line_2}` : ""}, ${listing.city}, ${listing.state} ${listing.postal_code}`; }
-function feedUrl(token: string) { return `${typeof window === "undefined" ? "https://admin.linpanrealty.com" : window.location.origin}/api/calendar/${token}`; }
+function feedUrl(token: string) { return `${typeof window === "undefined" ? "https://members.linpanrealty.com" : window.location.origin}/api/calendar/${token}`; }
