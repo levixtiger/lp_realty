@@ -421,3 +421,28 @@ test("Accounting tab manages multi-payment intake, office-separated accounting, 
   assert.match(multiFileMigration, /add column if not exists deal_sheet_files jsonb/);
   assert.match(multiFileMigration, /add column if not exists document_files jsonb/);
 });
+
+test("Forms library gives approved users private downloads and staff upload controls", async () => {
+  const [formsPanel, listingPanel, clerkPanel, databaseTypes, migration] = await Promise.all([
+    readFile(new URL("../app/forms-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/database.types.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261020120000_add_forms_library.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(listingPanel, /activeView === "forms"/);
+  assert.match(listingPanel, />Forms</);
+  assert.match(listingPanel, /canManage={!isAgentAccess}/);
+  assert.match(formsPanel, /Upload form/);
+  assert.match(formsPanel, /Download/);
+  assert.match(formsPanel, /Choose a document/);
+  assert.match(clerkPanel, /COMPANY_FORMS_BUCKET = "company-forms"/);
+  assert.match(clerkPanel, /from\("company_forms"\)/);
+  assert.match(clerkPanel, /createSignedUrls\(companyFormPaths/);
+  assert.match(databaseTypes, /company_forms/);
+  assert.match(migration, /create table if not exists public\.company_forms/);
+  assert.match(migration, /'company-forms'/);
+  assert.match(migration, /false,/);
+  assert.match(migration, /current_panel_role\(\) in \('manager', 'operator', 'agent'\)/);
+});
