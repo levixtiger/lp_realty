@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, File as FileIcon, FileSpreadsheet, FileText, Pencil, Plus, Search, Trash2, UploadCloud, X } from "lucide-react";
+import { ChevronDown, Download, File as FileIcon, FileSpreadsheet, FileText, Folder, Pencil, Plus, Search, Trash2, UploadCloud, X } from "lucide-react";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 
 export type CompanyForm = {
@@ -36,6 +36,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editor, setEditor] = useState<CompanyForm | "new" | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set());
   const categories = useMemo(() => Array.from(new Set(forms.map((form) => form.category))).sort(), [forms]);
   const fileTypes = useMemo(() => new Set(forms.map((form) => form.file_name.split(".").pop()?.toUpperCase()).filter(Boolean)).size, [forms]);
   const filtered = useMemo(() => forms.filter((form) => {
@@ -43,6 +44,17 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
     const haystack = `${form.title} ${form.description || ""} ${form.file_name} ${form.category}`.toLowerCase();
     return matchesCategory && haystack.includes(query.trim().toLowerCase());
   }), [category, forms, query]);
+  const grouped = useMemo(() => {
+    const groups = new Map<string, CompanyForm[]>();
+    for (const form of filtered) groups.set(form.category, [...(groups.get(form.category) || []), form]);
+    return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [filtered]);
+
+  const toggleCategory = (name: string) => setCollapsedCategories((current) => {
+    const next = new Set(current);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
 
   const remove = async (form: CompanyForm) => {
     if (!window.confirm(`Remove “${form.title}” from the resource library?`)) return;
@@ -63,15 +75,28 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
         {canManage && <button className="primary-button" onClick={() => setEditor("new")}><Plus size={16} />Upload resources</button>}
       </header>
 
-      <div className="forms-grid">
-        {filtered.map((form) => <article className="form-card" key={form.id}>
-          <div className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</div>
-          <div className="form-card-copy"><span>{form.category}</span><h2>{form.title}</h2><p>{form.description || "Company resource available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
-          <div className="form-card-actions">
-            {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} />Download</a> : <button className="primary-button" disabled><Download size={15} />Unavailable</button>}
-            {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => void remove(form)}><Trash2 size={15} /></button></>}
-          </div>
-        </article>)}
+      <div className="resource-groups">
+        {grouped.map(([groupName, resources]) => {
+          const collapsed = collapsedCategories.has(groupName);
+          const panelId = `resource-group-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+          return <section className={`resource-group ${collapsed ? "collapsed" : ""}`} key={groupName}>
+            <button className="resource-group-toggle" type="button" aria-expanded={!collapsed} aria-controls={panelId} onClick={() => toggleCategory(groupName)}>
+              <span className="resource-group-icon"><Folder size={18} /></span>
+              <span className="resource-group-title"><strong>{groupName}</strong><small>{resources.length} resource{resources.length === 1 ? "" : "s"}</small></span>
+              <ChevronDown className="resource-group-chevron" size={18} />
+            </button>
+            {!collapsed && <div className="resource-group-content" id={panelId}>
+              {resources.map((form) => <article className="resource-row" key={form.id}>
+                <div className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</div>
+                <div className="resource-row-copy"><h2>{form.title}</h2><p>{form.description || "Company resource available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
+                <div className="resource-row-actions">
+                  {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} /><span>Download</span></a> : <button className="primary-button" disabled><Download size={15} /><span>Unavailable</span></button>}
+                  {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => void remove(form)}><Trash2 size={15} /></button></>}
+                </div>
+              </article>)}
+            </div>}
+          </section>;
+        })}
         {!filtered.length && <div className="forms-empty"><FileText size={30} /><strong>No resources found</strong><span>{forms.length ? "Try another search or category." : canManage ? "Upload the first frequently used file for the team." : "Resources shared by the office will appear here."}</span></div>}
       </div>
     </section>
