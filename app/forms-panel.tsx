@@ -45,8 +45,8 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
   }), [category, forms, query]);
 
   const remove = async (form: CompanyForm) => {
-    if (!window.confirm(`Remove “${form.title}” from the forms library?`)) return;
-    if (await onDelete(form)) onNotice("Form removed");
+    if (!window.confirm(`Remove “${form.title}” from the resource library?`)) return;
+    if (await onDelete(form)) onNotice("Resource removed");
   };
 
   return <>
@@ -59,14 +59,14 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
     <section className="forms-library">
       <header className="forms-toolbar">
         <label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search resources…" /></label>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter forms by category"><option value="all">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter resources by category"><option value="all">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
         {canManage && <button className="primary-button" onClick={() => setEditor("new")}><Plus size={16} />Upload resources</button>}
       </header>
 
       <div className="forms-grid">
         {filtered.map((form) => <article className="form-card" key={form.id}>
           <div className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</div>
-          <div className="form-card-copy"><span>{form.category}</span><h2>{form.title}</h2><p>{form.description || "Company form available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
+          <div className="form-card-copy"><span>{form.category}</span><h2>{form.title}</h2><p>{form.description || "Company resource available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
           <div className="form-card-actions">
             {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} />Download</a> : <button className="primary-button" disabled><Download size={15} />Unavailable</button>}
             {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => void remove(form)}><Trash2 size={15} /></button></>}
@@ -108,7 +108,7 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <form className="editor-modal form-editor" onSubmit={submit}>
       <header><div><p className="eyebrow">Resource library</p><h2>{form ? "Edit resource" : "Upload resources"}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={20} /></button></header>
-      <div className="editor-content"><section><h3>Form details</h3><div className="form-grid">
+      <div className="editor-content"><section><h3>Resource details</h3><div className="form-grid">
         <label className="full">Title{!form && <small>Optional for batch uploads; filenames will become titles.</small>}<input required={Boolean(form)} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Exclusive right to sell agreement" /></label>
         <label>Category<select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="full">Description<textarea rows={3} value={draft.description || ""} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value || null }))} placeholder="Briefly explain when agents should use this form." /></label>
