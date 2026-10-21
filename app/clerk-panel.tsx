@@ -17,6 +17,7 @@ import type { InteractionDraft, Lead, LeadDraft, LeadInteraction } from "./leads
 import type { OpenHouse, OpenHouseDraft } from "./open-houses-panel";
 import type { CalendarConnection, CalendarEvent, CalendarEventDraft } from "./calendar-panel";
 import type { CompanyForm, CompanyFormDraft } from "./forms-panel";
+import type { ExternalContact, ExternalContactDraft } from "./contacts-panel";
 
 type DbClient = SupabaseClient<Database>;
 const LISTING_IMAGE_BUCKET = "listing-images";
@@ -54,6 +55,7 @@ export function AuthenticatedPanel() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarConnections, setCalendarConnections] = useState<CalendarConnection[]>([]);
   const [companyForms, setCompanyForms] = useState<CompanyForm[]>([]);
+  const [externalContacts, setExternalContacts] = useState<ExternalContact[]>([]);
   const [contentVideos, setContentVideos] = useState<ContentVideo[]>([]);
   const [contentAccounts, setContentAccounts] = useState<ContentAccount[]>([]);
   const [accountingClosings, setAccountingClosings] = useState<AccountingClosing[]>([]);
@@ -108,7 +110,7 @@ export function AuthenticatedPanel() {
   const load = useCallback(async () => {
     if (!supabase) return;
     setError("");
-    const [listingResult, agentResult, leadResult, interactionResult, openHouseResult, calendarEventResult, calendarConnectionResult, companyFormsResult, contentResult, contentAccountResult, accountingClosingResult, accountingRuleResult, accountingPayeeResult, accessRequestResult, databaseRoleResult] = await Promise.all([
+    const [listingResult, agentResult, leadResult, interactionResult, openHouseResult, calendarEventResult, calendarConnectionResult, companyFormsResult, externalContactsResult, contentResult, contentAccountResult, accountingClosingResult, accountingRuleResult, accountingPayeeResult, accessRequestResult, databaseRoleResult] = await Promise.all([
       withFreshTokenRetry(() => supabase
         .from("listings")
         .select("*, assigned_agent:agents!listings_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), sold_by_agent:agents!listings_sold_by_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active)")
@@ -118,9 +120,10 @@ export function AuthenticatedPanel() {
       withFreshTokenRetry(() => supabase.from("leads").select("*, assigned_agent:agents!leads_assigned_agent_id_fkey(id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), listing_links:lead_listings(listing_id)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("lead_interactions").select("*").order("happened_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("open_houses").select("*, items:open_house_items(*)").is("deleted_at", null).order("updated_at", { ascending: false })),
-      withFreshTokenRetry(() => supabase.from("calendar_events").select("*").is("deleted_at", null).order("starts_at")),
+      withFreshTokenRetry(() => supabase.from("calendar_events").select("*, assigned_agent:agents(id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active), listing:listings(id,slug,title,address_line_1,address_line_2,city,state,postal_code,property_type,offering_type,asking_price,building_area_sqft,heating,annual_tax,common_charge,description,open_house,status,assigned_agent_id,sold_by_agent_id,sold_at,image_urls,source_url,published,created_by,updated_by,created_at,updated_at,deleted_at), lead:leads(id,first_name,last_name,email,phone)").is("deleted_at", null).order("starts_at")),
       withFreshTokenRetry(() => supabase.from("calendar_connections").select("*").order("created_at")),
       withFreshTokenRetry(() => supabase.from("company_forms").select("*").is("deleted_at", null).order("category").order("title")),
+      withFreshTokenRetry(() => supabase.from("external_contacts").select("*").is("deleted_at", null).order("expertise").order("name")),
       withFreshTokenRetry(() => supabase.from("content_videos").select("*, links:content_video_links(*), listing:listings(id,slug,title,address_line_1,address_line_2,city,state,postal_code,property_type,offering_type,asking_price,building_area_sqft,heating,annual_tax,common_charge,description,open_house,status,assigned_agent_id,sold_by_agent_id,sold_at,image_urls,source_url,published,created_by,updated_by,created_at,updated_at,deleted_at), agent:agents(id,clerk_user_id,full_name,email,phone,title,bio,photo_url,license_number,languages,active,created_at,updated_at)").is("deleted_at", null).order("updated_at", { ascending: false })),
       withFreshTokenRetry(() => supabase.from("content_accounts").select("*").is("deleted_at", null).order("platform").order("sort_order").order("account_name")),
       withFreshTokenRetry(() => supabase.from("accounting_closings").select("*, intake_payments:accounting_intake_payments(*), allocations:accounting_allocations(*), audit_entries:accounting_audit_entries(*)").is("deleted_at", null).order("reception_date", { ascending: false })),
@@ -137,17 +140,19 @@ export function AuthenticatedPanel() {
     const openHouseDatabasePending = Boolean(openHouseResult.error?.message?.includes("open_houses") || openHouseResult.error?.message?.includes("open_house_items"));
     const calendarDatabasePending = Boolean(calendarEventResult.error?.message?.includes("calendar_events") || calendarConnectionResult.error?.message?.includes("calendar_connections"));
     const formsDatabasePending = isMissingTableError(companyFormsResult.error, "company_forms");
+    const contactsDatabasePending = isMissingTableError(externalContactsResult.error, "external_contacts");
     const contentVideoDatabasePending = Boolean(contentResult.error?.message?.includes("content_videos") || contentResult.error?.message?.includes("content_video_links"));
     const contentAccountDatabasePending = Boolean(contentAccountResult.error?.message?.includes("content_accounts"));
     const accountingDatabasePending = Boolean(accountingClosingResult.error?.message?.includes("accounting_") || accountingRuleResult.error?.message?.includes("accounting_") || accountingPayeeResult.error?.message?.includes("accounting_"));
     const accessRequestDatabasePending = isMissingTableError(accessRequestResult.error, "access_requests");
 
-    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error || (openHouseResult.error && !openHouseDatabasePending) || (calendarEventResult.error && !calendarDatabasePending) || (calendarConnectionResult.error && !calendarDatabasePending) || (companyFormsResult.error && !formsDatabasePending) || (contentResult.error && !contentVideoDatabasePending) || (contentAccountResult.error && !contentAccountDatabasePending) || (accountingClosingResult.error && !accountingDatabasePending) || (accountingRuleResult.error && !accountingDatabasePending) || (accountingPayeeResult.error && !accountingDatabasePending) || (accessRequestResult.error && !accessRequestDatabasePending)) {
-      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || openHouseResult.error?.message || calendarEventResult.error?.message || calendarConnectionResult.error?.message || companyFormsResult.error?.message || contentResult.error?.message || contentAccountResult.error?.message || accountingClosingResult.error?.message || accountingRuleResult.error?.message || accountingPayeeResult.error?.message || accessRequestResult.error?.message || "Unable to load workspace data.");
+    if (listingResult.error || agentResult.error || leadResult.error || interactionResult.error || (openHouseResult.error && !openHouseDatabasePending) || (calendarEventResult.error && !calendarDatabasePending) || (calendarConnectionResult.error && !calendarDatabasePending) || (companyFormsResult.error && !formsDatabasePending) || (externalContactsResult.error && !contactsDatabasePending) || (contentResult.error && !contentVideoDatabasePending) || (contentAccountResult.error && !contentAccountDatabasePending) || (accountingClosingResult.error && !accountingDatabasePending) || (accountingRuleResult.error && !accountingDatabasePending) || (accountingPayeeResult.error && !accountingDatabasePending) || (accessRequestResult.error && !accessRequestDatabasePending)) {
+      setError(listingResult.error?.message || agentResult.error?.message || leadResult.error?.message || interactionResult.error?.message || openHouseResult.error?.message || calendarEventResult.error?.message || calendarConnectionResult.error?.message || companyFormsResult.error?.message || externalContactsResult.error?.message || contentResult.error?.message || contentAccountResult.error?.message || accountingClosingResult.error?.message || accountingRuleResult.error?.message || accountingPayeeResult.error?.message || accessRequestResult.error?.message || "Unable to load workspace data.");
     } else {
       if (openHouseDatabasePending) setError("OpenHouse database migration is ready but has not been applied to Supabase yet.");
       if (calendarDatabasePending) setError("Calendar database migration is ready but has not been applied to Supabase yet.");
       if (formsDatabasePending) setError("Forms library database migration is ready but has not been applied to Supabase yet.");
+      if (contactsDatabasePending) setError("Shared contacts database migration is ready but has not been applied to Supabase yet.");
       if (contentVideoDatabasePending || contentAccountDatabasePending) setError("Content database migration is ready but has not been applied to Supabase yet.");
       if (accountingDatabasePending) setError("Accounting database migration is ready but has not been applied to Supabase yet.");
       if (accessRequestDatabasePending) setError("Access request database migration is ready but has not been applied to Supabase yet.");
@@ -212,6 +217,7 @@ export function AuthenticatedPanel() {
         }
       }
       setCompanyForms(rawCompanyForms.map((form) => ({ ...form, display_url: companyFormUrls.get(form.file_path) || null })));
+      setExternalContacts(contactsDatabasePending ? [] : (externalContactsResult.data || []) as unknown as ExternalContact[]);
       setContentVideos(contentVideoDatabasePending ? [] : ((contentResult.data || []) as unknown as ContentVideo[]).map((video) => ({
         ...video,
         links: (video.links || []).slice().sort((a, b) => a.sort_order - b.sort_order),
@@ -622,6 +628,37 @@ export function AuthenticatedPanel() {
     return true;
   };
 
+  const saveExternalContact = async (draft: ExternalContactDraft, id?: string) => {
+    if (!supabase || !user) return false;
+    const payload = {
+      name: draft.name.trim(),
+      company: draft.company?.trim() || null,
+      expertise: draft.expertise,
+      phone: draft.phone?.trim() || null,
+      email: draft.email?.trim() || null,
+      website: draft.website?.trim() || null,
+      address: draft.address?.trim() || null,
+      notes: draft.notes?.trim() || null,
+      updated_by: user.id,
+      deleted_at: null,
+    };
+    if (!payload.phone && !payload.email && !payload.website) { setError("Add at least a phone number, email, or website."); return false; }
+    const result = id
+      ? await withFreshTokenRetry(() => supabase.from("external_contacts").update(payload).eq("id", id))
+      : await withFreshTokenRetry(() => supabase.from("external_contacts").insert({ ...payload, created_by: user.id }));
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
+  const deleteExternalContact = async (contact: ExternalContact) => {
+    if (!supabase || !user) return false;
+    const result = await withFreshTokenRetry(() => supabase.from("external_contacts").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", contact.id));
+    if (result.error) { setError(result.error.message); return false; }
+    await load();
+    return true;
+  };
+
   const saveContentVideo = async (draft: ContentVideoDraft, id?: string) => {
     if (!supabase || !user) return false;
     const { links, ...videoDraft } = draft;
@@ -958,6 +995,7 @@ export function AuthenticatedPanel() {
       initialCalendarEvents={calendarEvents}
       initialCalendarConnections={calendarConnections}
       initialCompanyForms={companyForms}
+      initialExternalContacts={externalContacts}
       initialContentVideos={isAgentAccess ? [] : contentVideos}
       initialContentAccounts={contentAccounts}
       initialAccountingClosings={visibleAccountingClosings}
@@ -966,6 +1004,7 @@ export function AuthenticatedPanel() {
       initialAccessRequests={isAccountingManager ? accessRequests : []}
       accountingAccessRole={accountingAccessRole}
       currentAgentId={currentAgent?.id || null}
+      currentUserId={user.id}
       error={error}
       accountSlot={<UserButton />}
       onSave={save}
@@ -984,6 +1023,8 @@ export function AuthenticatedPanel() {
       onDisconnectCalendar={disconnectCalendar}
       onSaveCompanyForm={saveCompanyForm}
       onDeleteCompanyForm={deleteCompanyForm}
+      onSaveExternalContact={saveExternalContact}
+      onDeleteExternalContact={deleteExternalContact}
       onSaveContentVideo={saveContentVideo}
       onDeleteContentVideo={deleteContentVideo}
       onSaveContentAccount={saveContentAccount}

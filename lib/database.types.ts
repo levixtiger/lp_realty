@@ -83,6 +83,12 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["company_forms"]["Insert"]>;
         Relationships: [];
       };
+      external_contacts: {
+        Row: { id: string; name: string; company: string | null; expertise: string; phone: string | null; email: string | null; website: string | null; address: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
+        Insert: { id?: string; name: string; company?: string | null; expertise?: string; phone?: string | null; email?: string | null; website?: string | null; address?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };
+        Update: Partial<Database["public"]["Tables"]["external_contacts"]["Insert"]>;
+        Relationships: [];
+      };
       content_videos: {
         Row: { id: string; title: string; platform: string; platform_url: string; status: string; listing_id: string | null; agent_id: string | null; published_at: string | null; thumbnail_url: string | null; notes: string | null; created_by: string; updated_by: string; created_at: string; updated_at: string; deleted_at: string | null };
         Insert: { id?: string; title: string; platform?: string; platform_url?: string; status?: string; listing_id?: string | null; agent_id?: string | null; published_at?: string | null; thumbnail_url?: string | null; notes?: string | null; created_by: string; updated_by: string; created_at?: string; updated_at?: string; deleted_at?: string | null };

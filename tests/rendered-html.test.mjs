@@ -250,7 +250,7 @@ test("calendar schedules agent showings and open houses with a private subscript
   assert.match(calendarPanel, /Showing/);
   assert.match(calendarPanel, /Open house/);
   assert.match(calendarPanel, /Scheduling conflict/);
-  assert.match(calendarPanel, /<label>Listing<select/);
+  assert.match(calendarPanel, /<label>Listing.*<select required=/);
   assert.match(calendarPanel, /<label>Lead<select/);
   assert.match(clerkPanel, /from\("calendar_events"\)/);
   assert.match(clerkPanel, /from\("calendar_connections"\)/);
@@ -432,11 +432,11 @@ test("Forms library gives approved users private downloads and staff upload cont
   ]);
 
   assert.match(listingPanel, /activeView === "forms"/);
-  assert.match(listingPanel, />Forms</);
+  assert.match(listingPanel, />Resources</);
   assert.match(listingPanel, /canManage={!isAgentAccess}/);
-  assert.match(formsPanel, /Upload form/);
+  assert.match(formsPanel, /Upload resources/);
   assert.match(formsPanel, /Download/);
-  assert.match(formsPanel, /Choose a document/);
+  assert.match(formsPanel, /Choose one or more documents/);
   assert.match(clerkPanel, /COMPANY_FORMS_BUCKET = "company-forms"/);
   assert.match(clerkPanel, /from\("company_forms"\)/);
   assert.match(clerkPanel, /createSignedUrls\(companyFormPaths/);
@@ -445,4 +445,27 @@ test("Forms library gives approved users private downloads and staff upload cont
   assert.match(migration, /'company-forms'/);
   assert.match(migration, /false,/);
   assert.match(migration, /current_panel_role\(\) in \('manager', 'operator', 'agent'\)/);
+});
+
+test("listing calendar is agent-first and shared contacts are organized by expertise", async () => {
+  const [calendarPanel, listingPanel, contactsPanel, clerkPanel, databaseTypes, migration] = await Promise.all([
+    readFile(new URL("../app/calendar-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/contacts-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/database.types.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261021120000_add_shared_contacts.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(listingPanel, /accountingAccessRole === "agent" \? "calendar" : "listings"/);
+  assert.match(calendarPanel, /Required for showings and open houses/);
+  assert.match(calendarPanel, /Email agent/);
+  assert.match(calendarPanel, /buildNotificationEmail/);
+  assert.match(clerkPanel, /listing:listings/);
+  assert.match(listingPanel, /activeView === "contacts"/);
+  assert.match(contactsPanel, /Trusted external contacts/);
+  assert.match(contactsPanel, /All expertise/);
+  assert.match(clerkPanel, /from\("external_contacts"\)/);
+  assert.match(databaseTypes, /external_contacts/);
+  assert.match(migration, /create table if not exists public\.external_contacts/);
+  assert.match(migration, /external_contacts_update_owner_or_staff/);
 });

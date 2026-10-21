@@ -30,7 +30,7 @@ type Props = {
   onNotice: (message: string) => void;
 };
 
-const categoryOptions = ["General", "Listing", "Buyer", "Seller", "Rental", "Accounting", "Other"];
+const categoryOptions = ["Showing · Rental", "Showing · Sale", "Transaction · Rental", "Transaction · Sale", "General", "Listing", "Buyer", "Seller", "Rental", "Accounting", "Other"];
 
 export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Props) {
   const [query, setQuery] = useState("");
@@ -51,16 +51,16 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
 
   return <>
     <section className="forms-summary">
-      <div><span>Available forms</span><strong>{forms.length}</strong><small>Ready for agent download</small></div>
+      <div><span>Available resources</span><strong>{forms.length}</strong><small>Ready for agent download</small></div>
       <div><span>Categories</span><strong>{categories.length}</strong><small>Organized for quick access</small></div>
       <div><span>File types</span><strong>{fileTypes}</strong><small>PDF, Word, Excel, and more</small></div>
     </section>
 
     <section className="forms-library">
       <header className="forms-toolbar">
-        <label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search forms…" /></label>
+        <label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search resources…" /></label>
         <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter forms by category"><option value="all">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-        {canManage && <button className="primary-button" onClick={() => setEditor("new")}><Plus size={16} />Upload form</button>}
+        {canManage && <button className="primary-button" onClick={() => setEditor("new")}><Plus size={16} />Upload resources</button>}
       </header>
 
       <div className="forms-grid">
@@ -72,25 +72,34 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
             {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => void remove(form)}><Trash2 size={15} /></button></>}
           </div>
         </article>)}
-        {!filtered.length && <div className="forms-empty"><FileText size={30} /><strong>No forms found</strong><span>{forms.length ? "Try another search or category." : canManage ? "Upload the first frequently used form for the team." : "Forms uploaded by the office will appear here."}</span></div>}
+        {!filtered.length && <div className="forms-empty"><FileText size={30} /><strong>No resources found</strong><span>{forms.length ? "Try another search or category." : canManage ? "Upload the first frequently used file for the team." : "Resources shared by the office will appear here."}</span></div>}
       </div>
     </section>
 
-    {editor && <FormEditor form={editor === "new" ? undefined : editor} onClose={() => setEditor(null)} onSave={async (draft, file, id) => { const ok = await onSave(draft, file, id); if (ok) { setEditor(null); onNotice(id ? "Form updated" : "Form uploaded"); } return ok; }} />}
+    {editor && <FormEditor form={editor === "new" ? undefined : editor} onClose={() => setEditor(null)} onSave={async (draft, file, id) => { const ok = await onSave(draft, file, id); if (ok) { if (id) setEditor(null); onNotice(id ? "Resource updated" : "Resource uploaded"); } return ok; }} />}
   </>;
 }
 
 function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: () => void; onSave: (draft: CompanyFormDraft, file?: File, id?: string) => Promise<boolean> }) {
   const [draft, setDraft] = useState<CompanyFormDraft>({ title: form?.title || "", description: form?.description || null, category: form?.category || "General" });
-  const [file, setFile] = useState<File | undefined>();
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form && !file) return;
+    if (!form && !files.length) return;
     setSaving(true);
     try {
-      await onSave({ ...draft, title: draft.title.trim(), description: draft.description?.trim() || null }, file, form?.id);
+      if (form) {
+        await onSave({ ...draft, title: draft.title.trim(), description: draft.description?.trim() || null }, files[0], form.id);
+      } else {
+        for (const file of files) {
+          const title = files.length === 1 && draft.title.trim() ? draft.title.trim() : humanizeFileName(file.name);
+          const ok = await onSave({ ...draft, title, description: draft.description?.trim() || null }, file);
+          if (!ok) return;
+        }
+        onClose();
+      }
     } finally {
       setSaving(false);
     }
@@ -98,18 +107,18 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <form className="editor-modal form-editor" onSubmit={submit}>
-      <header><div><p className="eyebrow">Forms library</p><h2>{form ? "Edit form" : "Upload form"}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={20} /></button></header>
+      <header><div><p className="eyebrow">Resource library</p><h2>{form ? "Edit resource" : "Upload resources"}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={20} /></button></header>
       <div className="editor-content"><section><h3>Form details</h3><div className="form-grid">
-        <label className="full">Title<input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Exclusive right to sell agreement" /></label>
+        <label className="full">Title{!form && <small>Optional for batch uploads; filenames will become titles.</small>}<input required={Boolean(form)} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Exclusive right to sell agreement" /></label>
         <label>Category<select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="full">Description<textarea rows={3} value={draft.description || ""} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value || null }))} placeholder="Briefly explain when agents should use this form." /></label>
         <div className="full form-upload-field">
           <span>Document{form ? " replacement" : ""}</span>
-          <input ref={inputRef} type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*" onChange={(event) => setFile(event.target.files?.[0])} />
-          <button type="button" className={`form-dropzone ${file ? "has-file" : ""}`} onClick={() => inputRef.current?.click()}><UploadCloud size={23} /><strong>{file?.name || (form ? form.file_name : "Choose a document")}</strong><small>{file ? formatFileSize(file.size) : form ? "Choose another file only if this form has changed." : "PDF, Word, Excel, image, or text file"}</small></button>
+          <input ref={inputRef} type="file" hidden multiple={!form} accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*" onChange={(event) => setFiles(Array.from(event.target.files || []))} />
+          <button type="button" className={`form-dropzone ${files.length ? "has-file" : ""}`} onClick={() => inputRef.current?.click()}><UploadCloud size={23} /><strong>{files.length ? `${files.length} file${files.length === 1 ? "" : "s"} selected` : (form ? form.file_name : "Choose one or more documents")}</strong><small>{files.length ? files.map((file) => file.name).join(" · ") : form ? "Choose another file only if this resource has changed." : "PDF, Word, Excel, image, or text files"}</small></button>
         </div>
       </div></section></div>
-      <footer><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || (!form && !file)}>{saving ? "Saving…" : form ? "Save changes" : "Upload form"}</button></footer>
+      <footer><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || (!form && !files.length)}>{saving ? "Saving…" : form ? "Save changes" : `Upload ${files.length || ""} resource${files.length === 1 ? "" : "s"}`}</button></footer>
     </form>
   </div>;
 }
@@ -117,3 +126,4 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
 function fileKind(name: string) { const extension = name.split(".").pop()?.toLowerCase(); return extension === "xls" || extension === "xlsx" || extension === "csv" ? "sheet" : extension === "pdf" || extension === "doc" || extension === "docx" ? "document" : "file"; }
 function fileIcon(name: string) { const kind = fileKind(name); return kind === "sheet" ? <FileSpreadsheet size={22} /> : kind === "document" ? <FileText size={22} /> : <FileIcon size={22} />; }
 function formatFileSize(size: number | null) { if (!size) return "File"; if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`; return `${(size / 1024 / 1024).toFixed(1)} MB`; }
+function humanizeFileName(name: string) { return name.replace(/\.[^.]+$/, "").replace(/[._-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, (letter) => letter.toUpperCase()).trim(); }

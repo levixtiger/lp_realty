@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight, Clipboard, Clock3, Link2, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clipboard, Clock3, Link2, Mail, Plus, Trash2, X } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import type { Agent, Listing } from "./listings-panel";
 import type { Lead } from "./leads-panel";
@@ -119,7 +119,7 @@ export function CalendarPanel({ events, connections, agents, listings, leads, cu
           const dayEvents = weekEvents.filter((event) => isSameDay(new Date(event.starts_at), day));
           return <div className={`calendar-day ${isSameDay(day, new Date()) ? "today" : ""}`} key={day.toISOString()}>
             <button className="calendar-day-head" onClick={() => setEditor({ startsAt: defaultStart(day) })}><span>{day.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{day.getDate()}</strong></button>
-            <div className="calendar-day-events">{dayEvents.map((event) => <button key={event.id} className={`calendar-event-card ${event.event_type}`} onClick={() => setEditor(event)}><time>{formatTime(event.starts_at)}</time><strong>{event.title}</strong><small>{event.assigned_agent?.full_name || agents.find((agent) => agent.id === event.assigned_agent_id)?.full_name || "Agent"}</small></button>)}{!dayEvents.length && <button className="calendar-add-slot" onClick={() => setEditor({ startsAt: defaultStart(day) })}><Plus size={14} />Add</button>}</div>
+            <div className="calendar-day-events">{dayEvents.map((event) => <button key={event.id} className={`calendar-event-card ${event.event_type}`} onClick={() => setEditor(event)}><time>{formatTime(event.starts_at)}</time><strong>{event.listing?.title || event.title}</strong><small>{event.assigned_agent?.full_name || agents.find((agent) => agent.id === event.assigned_agent_id)?.full_name || "Agent"}</small></button>)}{!dayEvents.length && <button className="calendar-add-slot" onClick={() => setEditor({ startsAt: defaultStart(day) })}><Plus size={14} />Add</button>}</div>
           </div>;
         })}
       </div>
@@ -127,7 +127,7 @@ export function CalendarPanel({ events, connections, agents, listings, leads, cu
 
     <section className="calendar-upcoming">
       <header><div><span>Upcoming schedule</span><small>Showings, open houses, and blocked time</small></div><strong>{upcoming.length} upcoming</strong></header>
-      <div>{upcoming.map((event) => <button key={event.id} onClick={() => setEditor(event)}><span className={`calendar-event-icon ${event.event_type}`}><CalendarDays size={16} /></span><span><strong>{event.title}</strong><small>{formatEventDate(event.starts_at, event.ends_at)}{event.location ? ` · ${event.location}` : ""}</small></span><span>{event.assigned_agent?.full_name || agents.find((agent) => agent.id === event.assigned_agent_id)?.full_name || "Agent"}</span><ChevronRight size={16} /></button>)}{!upcoming.length && <div className="calendar-empty"><CalendarDays size={26} /><strong>No upcoming events</strong><span>Schedule a showing or block unavailable time.</span></div>}</div>
+      <div>{upcoming.map((event) => <button key={event.id} onClick={() => setEditor(event)}><span className={`calendar-event-icon ${event.event_type}`}><CalendarDays size={16} /></span><span><strong>{event.listing ? `${eventTypeLabel(event.event_type)} · ${event.listing.title}` : event.title}</strong><small>{formatEventDate(event.starts_at, event.ends_at)}{event.location ? ` · ${event.location}` : ""}</small></span><span>{event.assigned_agent?.full_name || agents.find((agent) => agent.id === event.assigned_agent_id)?.full_name || "Agent"}</span><ChevronRight size={16} /></button>)}{!upcoming.length && <div className="calendar-empty"><CalendarDays size={26} /><strong>No upcoming events</strong><span>Schedule a showing or open house for a listing.</span></div>}</div>
     </section>
 
     {editor && <CalendarEventEditor event={"id" in editor ? editor : undefined} initialStart={"id" in editor ? undefined : editor.startsAt} events={events} agents={agents} listings={listings} leads={leads} currentAgentId={currentAgentId} canManageAll={canManageAll} onClose={() => setEditor(null)} onSave={async (draft, id) => { const ok = await onSave(draft, id); if (ok) { setEditor(null); onNotice(id ? "Calendar event updated" : "Calendar event scheduled"); } return ok; }} onDelete={async (id) => { if (!window.confirm("Remove this calendar event?")) return false; const ok = await onDelete(id); if (ok) { setEditor(null); onNotice("Calendar event removed"); } return ok; }} />}
@@ -140,13 +140,17 @@ function CalendarEventEditor({ event, initialStart, events, agents, listings, le
   const set = (key: keyof CalendarEventDraft, value: CalendarEventDraft[keyof CalendarEventDraft]) => setDraft((current) => ({ ...current, [key]: value }));
   const conflictingEvent = events.find((item) => item.id !== event?.id && item.status === "scheduled" && item.assigned_agent_id === draft.assigned_agent_id && new Date(item.starts_at) < new Date(draft.ends_at) && new Date(item.ends_at) > new Date(draft.starts_at));
   const invalidRange = !draft.starts_at || !draft.ends_at || new Date(draft.ends_at) <= new Date(draft.starts_at);
+  const listingRequired = (draft.event_type === "showing" || draft.event_type === "open_house") && !draft.listing_id;
+  const assignedAgent = agents.find((agent) => agent.id === draft.assigned_agent_id) || event?.assigned_agent || null;
+  const selectedListing = listings.find((listing) => listing.id === draft.listing_id) || event?.listing || null;
+  const emailHref = assignedAgent?.email ? buildNotificationEmail(assignedAgent, draft, selectedListing) : "";
   const selectListing = (listingId: string) => {
     const listing = listings.find((item) => item.id === listingId);
     setDraft((current) => ({ ...current, listing_id: listingId || null, location: listing ? listingAddress(listing) : current.location, title: listing && (!current.title || current.title === "Property showing") ? `Showing · ${listing.title}` : current.title }));
   };
   const submit = async (submitEvent: FormEvent) => {
     submitEvent.preventDefault();
-    if (conflictingEvent || invalidRange) return;
+    if (conflictingEvent || invalidRange || listingRequired) return;
     setSaving(true);
     await onSave({ ...draft, title: draft.title.trim(), location: draft.location?.trim() || null, notes: draft.notes?.trim() || null }, event?.id);
     setSaving(false);
@@ -162,14 +166,14 @@ function CalendarEventEditor({ event, initialStart, events, agents, listings, le
         <label>Ends<input required type="datetime-local" value={toLocalInput(draft.ends_at)} onChange={(input) => set("ends_at", fromLocalInput(input.target.value))} /></label>
         {conflictingEvent && <div className="calendar-conflict full"><Clock3 size={16} /><span><strong>Scheduling conflict</strong>{conflictingEvent.title} already occupies {formatEventDate(conflictingEvent.starts_at, conflictingEvent.ends_at)}.</span></div>}
         {invalidRange && !conflictingEvent && <div className="calendar-conflict full"><Clock3 size={16} /><span><strong>Check the event time</strong>The end must be later than the start.</span></div>}
-        <label>Listing<select value={draft.listing_id || ""} onChange={(input) => selectListing(input.target.value)}><option value="">No listing</option>{listings.map((listing) => <option key={listing.id} value={listing.id}>{listing.title}</option>)}</select></label>
+        <label>Listing{listingRequired && <small className="field-error">Required for showings and open houses</small>}<select required={draft.event_type === "showing" || draft.event_type === "open_house"} value={draft.listing_id || ""} onChange={(input) => selectListing(input.target.value)}><option value="">Select listing</option>{listings.map((listing) => <option key={listing.id} value={listing.id}>{listing.title}</option>)}</select></label>
         <label>Lead<select value={draft.lead_id || ""} onChange={(input) => set("lead_id", input.target.value || null)}><option value="">No lead</option>{leads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.first_name} ${lead.last_name}`.trim()}</option>)}</select></label>
         <label className="full">Location<input value={draft.location || ""} onChange={(input) => set("location", input.target.value || null)} placeholder="Property address or meeting place" /></label>
         <label>Status<select value={draft.status} onChange={(input) => set("status", input.target.value as CalendarEventStatus)}><option value="scheduled">Scheduled</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
         <label>Time zone<input value={draft.timezone} disabled /></label>
         <label className="full">Notes<textarea rows={4} value={draft.notes || ""} onChange={(input) => set("notes", input.target.value || null)} placeholder="Access instructions, attendees, or preparation notes…" /></label>
       </div></section></div>
-      <footer>{event && <button type="button" className="danger-button calendar-delete" onClick={() => void onDelete(event.id)}><Trash2 size={15} />Delete</button>}<button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || Boolean(conflictingEvent) || invalidRange}>{saving ? "Saving…" : event ? "Save changes" : "Schedule event"}</button></footer>
+      <footer>{event && <button type="button" className="danger-button calendar-delete" onClick={() => void onDelete(event.id)}><Trash2 size={15} />Delete</button>}{emailHref && <a className="secondary-button calendar-email" href={emailHref}><Mail size={15} />Email agent</a>}<button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || Boolean(conflictingEvent) || invalidRange || listingRequired}>{saving ? "Saving…" : event ? "Save changes" : "Schedule event"}</button></footer>
     </form>
   </div>;
 }
@@ -190,4 +194,10 @@ function formatEventDate(start: string, end: string) { const starts = new Date(s
 function toLocalInput(value: string) { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
 function fromLocalInput(value: string) { return value ? new Date(value).toISOString() : ""; }
 function listingAddress(listing: Listing) { return `${listing.address_line_1}${listing.address_line_2 ? ` ${listing.address_line_2}` : ""}, ${listing.city}, ${listing.state} ${listing.postal_code}`; }
+function eventTypeLabel(type: CalendarEventType) { return eventTypeOptions.find((option) => option.value === type)?.label || "Event"; }
+function buildNotificationEmail(agent: Agent, event: CalendarEventDraft, listing: Listing | null) {
+  const subject = `${eventTypeLabel(event.event_type)} assignment${listing ? ` · ${listing.title}` : ""}`;
+  const lines = [`Hi ${agent.full_name},`, "", `You have been assigned to a ${eventTypeLabel(event.event_type).toLowerCase()}.`, listing ? `Listing: ${listing.title}` : null, listing ? `Address: ${listingAddress(listing)}` : event.location ? `Location: ${event.location}` : null, `Time: ${formatEventDate(event.starts_at, event.ends_at)}`, event.notes ? `Notes: ${event.notes}` : null, "", "Please log in to the Lin Pan Realty member panel for the latest details.", "", "Lin Pan Realty Group"].filter((line): line is string => line !== null);
+  return `mailto:${encodeURIComponent(agent.email || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}
 function feedUrl(token: string) { return `${typeof window === "undefined" ? "https://members.linpanrealty.com" : window.location.origin}/api/calendar/${token}`; }

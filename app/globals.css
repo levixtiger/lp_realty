@@ -565,6 +565,16 @@ button { color: inherit; }
 .form-dropzone { min-height: 118px; padding: 18px; display: grid; place-items: center; align-content: center; gap: 6px; border: 1px dashed #bfd0c4; border-radius: 11px; background: linear-gradient(135deg, #f8fbf8, #f1f7f3); color: #527060; cursor: pointer; }
 .form-dropzone:hover, .form-dropzone.has-file { border-color: #759582; background: #eef6f0; }
 .form-dropzone strong { max-width: 100%; color: #385243; font-size: 11px; overflow-wrap: anywhere; }.form-dropzone small { color: #7d8981; font-size: 9px; }
+.calendar-email { text-decoration: none; }
+.contacts-library { margin-top: 23px; border: 1px solid var(--line); border-radius: 11px; background: white; overflow: hidden; }
+.contacts-intro { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #fbfdfb, #f2f7f3); }
+.contacts-intro h2 { margin: 4px 0; font-size: 20px; font-weight: 400; }.contacts-intro span { color: #78847c; font-size: 10px; }
+.contacts-toolbar { padding: 12px 14px; display: flex; gap: 10px; border-bottom: 1px solid var(--line); }.contacts-toolbar select { min-width: 160px; height: 38px; padding: 0 11px; border: 1px solid #e0e5e1; border-radius: 7px; background: white; color: #536159; font-size: 11px; }
+.contacts-grid { padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 12px; }
+.contact-card { min-width: 0; padding: 15px; display: grid; align-content: start; gap: 13px; border: 1px solid #e1e7e3; border-radius: 11px; background: #fcfdfc; }
+.contact-card-head { display: grid; grid-template-columns: 42px minmax(0, 1fr) 34px; gap: 10px; align-items: center; }.contact-avatar { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: #e7f0e9; color: #3e654d; }.contact-card-head div > span { color: #70907a; font-size: 8px; text-transform: uppercase; letter-spacing: .7px; }.contact-card-head h3 { margin: 3px 0 2px; font-size: 14px; font-weight: 500; }.contact-card-head p { margin: 0; color: #87918a; font-size: 9.5px; }
+.contact-details { display: grid; gap: 8px; }.contact-details a, .contact-details > span { min-width: 0; display: flex; align-items: flex-start; gap: 8px; color: #52675a; font-size: 10px; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }.contact-details svg { flex: 0 0 auto; margin-top: 1px; color: #71907a; }.contact-details p { margin: 2px 0 0; padding-top: 10px; border-top: 1px solid #edf1ee; color: #758078; font-size: 10px; line-height: 1.5; }
+.contact-remove { width: fit-content; padding: 0; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #a06661; font-size: 9px; cursor: pointer; }.contact-editor { width: min(650px, 100%); }
 
 .signin-page, .loading-page { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #f3f7ef, #e7eee8); }
 .signin-card { width: min(400px, calc(100% - 40px)); padding: 40px; border: 1px solid #dfe7e1; border-radius: 16px; background: rgba(255,255,255,.93); box-shadow: 0 24px 70px rgba(21,58,42,.12); text-align: center; }
@@ -701,6 +711,7 @@ button { color: inherit; }
   .forms-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }.forms-summary > div { min-height: 82px; padding: 12px 9px; }.forms-summary span { font-size: 7.5px; line-height: 1.3; }.forms-summary strong { font-size: 20px; }.forms-summary small { display: none; }
   .forms-toolbar { display: grid; grid-template-columns: 1fr 1fr; padding: 10px; }.forms-toolbar .search-box { grid-column: 1 / -1; min-width: 0; }.forms-toolbar select, .forms-toolbar .primary-button { width: 100%; min-width: 0; }
   .forms-grid { grid-template-columns: 1fr; padding: 10px; }.form-card { padding: 13px; }.form-card-copy p { min-height: 0; }.form-card-actions .primary-button { flex: 1; justify-content: center; }
+  .contacts-intro { align-items: flex-start; flex-direction: column; }.contacts-intro .primary-button { width: 100%; }.contacts-toolbar { display: grid; grid-template-columns: 1fr; }.contacts-toolbar .search-box, .contacts-toolbar select { width: 100%; min-width: 0; }.contacts-grid { grid-template-columns: 1fr; padding: 10px; }
   .lead-contact-row { grid-template-columns: 1fr; }
   .openhouse-summary-row { grid-template-columns: 1fr; }
   .openhouse-summary-row > div { border-right: 0; border-bottom: 1px solid var(--line); }

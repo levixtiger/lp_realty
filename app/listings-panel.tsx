@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   CircleDollarSign,
   Clock3,
+  ContactRound,
   ExternalLink,
   Files,
   ImagePlus,
@@ -32,6 +33,7 @@ import { LeadsPanel, type InteractionDraft, type Lead, type LeadDraft, type Lead
 import { OpenHousesPanel, type OpenHouse, type OpenHouseDraft } from "./open-houses-panel";
 import { CalendarPanel, type CalendarConnection, type CalendarEvent, type CalendarEventDraft } from "./calendar-panel";
 import { FormsPanel, type CompanyForm, type CompanyFormDraft } from "./forms-panel";
+import { ContactsPanel, type ExternalContact, type ExternalContactDraft } from "./contacts-panel";
 
 export type Agent = {
   id: string;
@@ -157,6 +159,7 @@ type Props = {
   initialCalendarEvents?: CalendarEvent[];
   initialCalendarConnections?: CalendarConnection[];
   initialCompanyForms?: CompanyForm[];
+  initialExternalContacts?: ExternalContact[];
   initialContentVideos?: ContentVideo[];
   initialContentAccounts?: ContentAccount[];
   initialAccountingClosings?: AccountingClosing[];
@@ -165,6 +168,7 @@ type Props = {
   initialAccessRequests?: AccessRequest[];
   accountingAccessRole?: AccountingAccessRole;
   currentAgentId?: string | null;
+  currentUserId?: string;
   accountSlot?: ReactNode;
   error?: string;
   onSave?: (draft: ListingDraft, id?: string) => Promise<boolean>;
@@ -183,6 +187,8 @@ type Props = {
   onDisconnectCalendar?: (id: string) => Promise<boolean>;
   onSaveCompanyForm?: (draft: CompanyFormDraft, file?: File, id?: string) => Promise<boolean>;
   onDeleteCompanyForm?: (form: CompanyForm) => Promise<boolean>;
+  onSaveExternalContact?: (draft: ExternalContactDraft, id?: string) => Promise<boolean>;
+  onDeleteExternalContact?: (contact: ExternalContact) => Promise<boolean>;
   onSaveContentVideo?: (draft: ContentVideoDraft, id?: string) => Promise<boolean>;
   onDeleteContentVideo?: (id: string) => Promise<boolean>;
   onSaveContentAccount?: (draft: ContentAccountDraft, id?: string) => Promise<boolean>;
@@ -197,7 +203,7 @@ type Props = {
   onReviewAccessRequest?: (request: AccessRequest, status: "approved" | "rejected", approvedRole: "agent" | "operator" | null) => Promise<boolean>;
 };
 
-export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialCalendarEvents, initialCalendarConnections, initialCompanyForms, initialContentVideos, initialContentAccounts, initialAccountingClosings, initialAccountingRules, initialAccountingPayees, initialAccessRequests, accountingAccessRole = "manager", currentAgentId = null, accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveCalendarEvent, onDeleteCalendarEvent, onConnectCalendar, onDisconnectCalendar, onSaveCompanyForm, onDeleteCompanyForm, onSaveContentVideo, onDeleteContentVideo, onSaveContentAccount, onDeleteContentAccount, onSaveAccountingClosing, onDeleteAccountingClosing, onSaveAccountingRule, onDeleteAccountingRule, onSaveAccountingPayee, onDeleteAccountingPayee, onUploadAccountingDocument, onReviewAccessRequest }: Props) {
+export function ListingPanel({ mode, initialListings, initialAgents, initialLeads, initialLeadInteractions, initialOpenHouses, initialCalendarEvents, initialCalendarConnections, initialCompanyForms, initialExternalContacts, initialContentVideos, initialContentAccounts, initialAccountingClosings, initialAccountingRules, initialAccountingPayees, initialAccessRequests, accountingAccessRole = "manager", currentAgentId = null, currentUserId = "preview", accountSlot, error, onSave, onDelete, onUploadImages, onSaveAgent, onUploadAgentPhoto, onSaveLead, onDeleteLead, onAddLeadInteraction, onSaveOpenHouse, onDeleteOpenHouse, onSaveCalendarEvent, onDeleteCalendarEvent, onConnectCalendar, onDisconnectCalendar, onSaveCompanyForm, onDeleteCompanyForm, onSaveExternalContact, onDeleteExternalContact, onSaveContentVideo, onDeleteContentVideo, onSaveContentAccount, onDeleteContentAccount, onSaveAccountingClosing, onDeleteAccountingClosing, onSaveAccountingRule, onDeleteAccountingRule, onSaveAccountingPayee, onDeleteAccountingPayee, onUploadAccountingDocument, onReviewAccessRequest }: Props) {
   const [listings, setListings] = useState(initialListings || sampleListings);
   const [agents, setAgents] = useState(initialAgents?.length ? initialAgents : [sampleAgent]);
   const [leads, setLeads] = useState(initialLeads || []);
@@ -206,13 +212,14 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
   const [calendarEvents, setCalendarEvents] = useState(initialCalendarEvents || []);
   const [calendarConnections, setCalendarConnections] = useState(initialCalendarConnections || []);
   const [companyForms, setCompanyForms] = useState(initialCompanyForms || []);
+  const [externalContacts, setExternalContacts] = useState(initialExternalContacts || []);
   const [contentVideos, setContentVideos] = useState(initialContentVideos || []);
   const [contentAccounts, setContentAccounts] = useState(initialContentAccounts || []);
   const [accountingClosings, setAccountingClosings] = useState(initialAccountingClosings || []);
   const [accountingRules, setAccountingRules] = useState(initialAccountingRules || []);
   const [accountingPayees, setAccountingPayees] = useState(initialAccountingPayees || []);
   const [accessRequests, setAccessRequests] = useState(initialAccessRequests || []);
-  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "calendar" | "forms" | "accounting" | "access">("listings");
+  const [activeView, setActiveView] = useState<"listings" | "agents" | "leads" | "calendar" | "forms" | "contacts" | "accounting" | "access">(accountingAccessRole === "agent" ? "calendar" : "listings");
   const [selectedId, setSelectedId] = useState((initialListings || sampleListings)[0]?.id || "");
   const [listingDetailOpen, setListingDetailOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -245,6 +252,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
   useEffect(() => { if (initialCalendarEvents) setCalendarEvents(initialCalendarEvents); }, [initialCalendarEvents]);
   useEffect(() => { if (initialCalendarConnections) setCalendarConnections(initialCalendarConnections); }, [initialCalendarConnections]);
   useEffect(() => { if (initialCompanyForms) setCompanyForms(initialCompanyForms); }, [initialCompanyForms]);
+  useEffect(() => { if (initialExternalContacts) setExternalContacts(initialExternalContacts); }, [initialExternalContacts]);
   useEffect(() => { if (initialContentVideos) setContentVideos(initialContentVideos); }, [initialContentVideos]);
   useEffect(() => { if (initialContentAccounts) setContentAccounts(initialContentAccounts); }, [initialContentAccounts]);
   useEffect(() => { if (initialAccountingClosings) setAccountingClosings(initialAccountingClosings); }, [initialAccountingClosings]);
@@ -466,6 +474,20 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
     return true;
   };
 
+  const saveExternalContact = async (draft: ExternalContactDraft, id?: string) => {
+    if (mode === "live" && onSaveExternalContact) return onSaveExternalContact(draft, id);
+    const now = new Date().toISOString();
+    if (id) setExternalContacts((current) => current.map((contact) => contact.id === id ? { ...contact, ...draft, updated_by: currentUserId, updated_at: now } : contact));
+    else setExternalContacts((current) => [{ ...draft, id: crypto.randomUUID(), created_by: currentUserId, updated_by: currentUserId, created_at: now, updated_at: now, deleted_at: null }, ...current]);
+    return true;
+  };
+
+  const deleteExternalContact = async (contact: ExternalContact) => {
+    if (mode === "live" && onDeleteExternalContact) return onDeleteExternalContact(contact);
+    setExternalContacts((current) => current.filter((item) => item.id !== contact.id));
+    return true;
+  };
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
@@ -475,7 +497,8 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
           {canViewAgents && <button type="button" className={activeView === "agents" ? "active" : ""} onClick={() => { setActiveView("agents"); setMobileNav(false); }}><Users size={18} />Agents<span className="nav-count">{agents.length}</span></button>}
           <button type="button" className={activeView === "leads" ? "active" : ""} onClick={() => { setActiveView("leads"); setMobileNav(false); }}><CircleUserRound size={18} />Leads<span className="nav-count">{leads.length}</span></button>
           <button type="button" className={activeView === "calendar" ? "active" : ""} onClick={() => { setActiveView("calendar"); setMobileNav(false); }}><CalendarDays size={18} />Calendar<span className="nav-count">{calendarEvents.filter((event) => event.status === "scheduled").length}</span></button>
-          <button type="button" className={activeView === "forms" ? "active" : ""} onClick={() => { setActiveView("forms"); setMobileNav(false); }}><Files size={18} />Forms<span className="nav-count">{companyForms.length}</span></button>
+          <button type="button" className={activeView === "forms" ? "active" : ""} onClick={() => { setActiveView("forms"); setMobileNav(false); }}><Files size={18} />Resources<span className="nav-count">{companyForms.length}</span></button>
+          <button type="button" className={activeView === "contacts" ? "active" : ""} onClick={() => { setActiveView("contacts"); setMobileNav(false); }}><ContactRound size={18} />Contacts<span className="nav-count">{externalContacts.length}</span></button>
           <button type="button" className={activeView === "accounting" ? "active" : ""} onClick={() => { setActiveView("accounting"); setMobileNav(false); }}><CircleDollarSign size={18} />Accounting<span className="nav-count">{accountingClosings.length}</span></button>
           {isManagerAccess && <button type="button" className={activeView === "access" ? "active" : ""} onClick={() => { setActiveView("access"); setMobileNav(false); }}><Settings size={18} />Access<span className="nav-count">{accessRequests.filter((request) => request.status === "pending").length}</span></button>}
         </nav>
@@ -487,7 +510,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
       <section className="workspace">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "calendar" ? "Calendar" : activeView === "forms" ? "Forms" : activeView === "access" ? "Access" : "Accounting"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "calendar" ? "Team calendar" : activeView === "forms" ? "Forms library" : activeView === "access" ? "Access requests" : "Accounting"}</h1></div>
+          <div><p className="breadcrumb">Workspace / {activeView === "listings" ? "Listings" : activeView === "agents" ? "Agents" : activeView === "leads" ? "Leads" : activeView === "calendar" ? "Calendar" : activeView === "forms" ? "Resources" : activeView === "contacts" ? "Contacts" : activeView === "access" ? "Access" : "Accounting"}</p><h1>{activeView === "listings" ? "Listing management" : activeView === "agents" ? "Agent directory" : activeView === "leads" ? "Lead management" : activeView === "calendar" ? (isAgentAccess ? "My calendar" : "Team calendar") : activeView === "forms" ? "Resource library" : activeView === "contacts" ? "Useful contacts" : activeView === "access" ? "Access requests" : "Accounting"}</h1></div>
           <div className="topbar-actions">
             {mode === "demo" && <span className="preview-pill"><span />Preview mode</span>}
             {accountSlot || <div className="avatar">LP</div>}
@@ -558,7 +581,7 @@ export function ListingPanel({ mode, initialListings, initialAgents, initialLead
         {!isAgentAccess && <section className="embedded-openhouses">
           <div className="embedded-section-head"><p className="eyebrow">Listing marketing</p><h2>OpenHouse events</h2><span>Create poster-ready open house events from listing inventory.</span></div>
           <OpenHousesPanel openHouses={openHouses} listings={listings} agents={agents} onSave={saveOpenHouse} onDelete={deleteOpenHouse} onNotice={setNotice} />
-        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} listings={listings} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "calendar" ? <CalendarPanel events={calendarEvents} connections={calendarConnections} agents={agents} listings={listings} leads={leads} currentAgentId={currentAgentId} canManageAll={!isAgentAccess} onSave={saveCalendarEvent} onDelete={deleteCalendarEvent} onConnect={connectCalendar} onDisconnect={disconnectCalendar} onNotice={setNotice} /> : activeView === "forms" ? <FormsPanel forms={companyForms} canManage={!isAgentAccess} onSave={saveCompanyForm} onDelete={deleteCompanyForm} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
+        </section>}</> : activeView === "agents" ? <AgentsPanel agents={agents} listings={listings} onSave={saveAgent} onUploadPhoto={onUploadAgentPhoto} onNotice={setNotice} /> : activeView === "leads" ? <LeadsPanel leads={leads} interactions={leadInteractions} agents={agents} listings={listings} canAssignLeads={!isAgentAccess} onSave={saveLead} onDelete={deleteLead} onAddInteraction={addLeadInteraction} onNotice={setNotice} /> : activeView === "calendar" ? <CalendarPanel events={calendarEvents} connections={calendarConnections} agents={agents} listings={listings} leads={leads} currentAgentId={currentAgentId} canManageAll={!isAgentAccess} onSave={saveCalendarEvent} onDelete={deleteCalendarEvent} onConnect={connectCalendar} onDisconnect={disconnectCalendar} onNotice={setNotice} /> : activeView === "forms" ? <FormsPanel forms={companyForms} canManage={!isAgentAccess} onSave={saveCompanyForm} onDelete={deleteCompanyForm} onNotice={setNotice} /> : activeView === "contacts" ? <ContactsPanel contacts={externalContacts} currentUserId={currentUserId} canManageAll={!isAgentAccess} onSave={saveExternalContact} onDelete={deleteExternalContact} onNotice={setNotice} /> : activeView === "access" ? <AccessRequestsPanel requests={accessRequests} onReview={onReviewAccessRequest} onNotice={setNotice} /> : <AccountingPanel closings={accountingClosings} agents={agents} payees={accountingPayees} accessRole={accountingAccessRole} onSaveClosing={saveAccountingClosing} onDeleteClosing={deleteAccountingClosing} onSavePayee={saveAccountingPayee} onDeletePayee={deleteAccountingPayee} onUploadDocument={onUploadAccountingDocument} onNotice={setNotice} />}
       </section>
 
       {editor && <ListingEditor listing={editor === "new" ? undefined : editor} agents={agents} onClose={() => setEditor(null)} onSave={saveListing} onUploadImages={onUploadImages} />}
