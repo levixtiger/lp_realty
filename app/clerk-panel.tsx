@@ -25,6 +25,7 @@ const AGENT_PHOTO_BUCKET = "agent-photos";
 const ACCOUNTING_DOCUMENT_BUCKET = "accounting-documents";
 const COMPANY_FORMS_BUCKET = "company-forms";
 const SIGNED_IMAGE_URL_TTL_SECONDS = 12 * 60 * 60;
+const RESOURCE_SHARE_URL_TTL_SECONDS = 24 * 60 * 60;
 
 export type AccessRequest = {
   id: string;
@@ -568,7 +569,7 @@ export function AuthenticatedPanel() {
   };
 
   const saveCompanyForm = async (draft: CompanyFormDraft, file?: File, id?: string) => {
-    if (!supabase || !user || isAgentAccess) return false;
+    if (!supabase || !user || !isAccountingManager) return false;
     const existing = id ? companyForms.find((form) => form.id === id) : undefined;
     let filePath = existing?.file_path || "";
     let fileName = existing?.file_name || "";
@@ -619,13 +620,20 @@ export function AuthenticatedPanel() {
   };
 
   const deleteCompanyForm = async (form: CompanyForm) => {
-    if (!supabase || !user || isAgentAccess) return false;
+    if (!supabase || !user || !isAccountingManager) return false;
     const result = await withFreshTokenRetry(() => supabase.from("company_forms").update({ deleted_at: new Date().toISOString(), updated_by: user.id }).eq("id", form.id));
     if (result.error) { setError(result.error.message); return false; }
     const storageResult = await supabase.storage.from(COMPANY_FORMS_BUCKET).remove([form.file_path]);
     if (storageResult.error) setError(`The form was removed, but its stored file could not be deleted: ${storageResult.error.message}`);
     await load();
     return true;
+  };
+
+  const shareCompanyForm = async (form: CompanyForm) => {
+    if (!supabase || !user) return null;
+    const result = await withFreshTokenRetry(() => supabase.storage.from(COMPANY_FORMS_BUCKET).createSignedUrl(form.file_path, RESOURCE_SHARE_URL_TTL_SECONDS, { download: form.file_name }));
+    if (result.error) { setError(result.error.message); return null; }
+    return result.data.signedUrl;
   };
 
   const saveExternalContact = async (draft: ExternalContactDraft, id?: string) => {
@@ -1023,6 +1031,7 @@ export function AuthenticatedPanel() {
       onDisconnectCalendar={disconnectCalendar}
       onSaveCompanyForm={saveCompanyForm}
       onDeleteCompanyForm={deleteCompanyForm}
+      onShareCompanyForm={shareCompanyForm}
       onSaveExternalContact={saveExternalContact}
       onDeleteExternalContact={deleteExternalContact}
       onSaveContentVideo={saveContentVideo}

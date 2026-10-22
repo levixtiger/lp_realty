@@ -433,12 +433,16 @@ test("Forms library gives approved users private downloads and staff upload cont
 
   assert.match(listingPanel, /activeView === "forms"/);
   assert.match(listingPanel, />Resources</);
-  assert.match(listingPanel, /canManage={!isAgentAccess}/);
+  assert.match(listingPanel, /canManage={isManagerAccess}/);
   assert.match(formsPanel, /Upload resources/);
   assert.match(formsPanel, /Download/);
   assert.match(formsPanel, /Drag files here or browse/);
   assert.match(formsPanel, /multiple={!form}/);
   assert.match(formsPanel, /DeleteResourceModal/);
+  assert.match(formsPanel, /Temporary public link/);
+  assert.match(formsPanel, /expires automatically after 24 hours/);
+  assert.match(clerkPanel, /RESOURCE_SHARE_URL_TTL_SECONDS = 24 \* 60 \* 60/);
+  assert.match(clerkPanel, /createSignedUrl\(form\.file_path, RESOURCE_SHARE_URL_TTL_SECONDS/);
   assert.match(clerkPanel, /COMPANY_FORMS_BUCKET = "company-forms"/);
   assert.match(clerkPanel, /from\("company_forms"\)/);
   assert.match(clerkPanel, /createSignedUrls\(companyFormPaths/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Download, File as FileIcon, FileSpreadsheet, FileText, Folder, Pencil, Plus, Search, Trash2, UploadCloud, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, ExternalLink, File as FileIcon, FileSpreadsheet, FileText, Folder, Link2, Pencil, Plus, Search, Share2, Trash2, UploadCloud, X } from "lucide-react";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 
 export type CompanyForm = {
@@ -27,17 +27,21 @@ type Props = {
   canManage: boolean;
   onSave: (draft: CompanyFormDraft, file?: File, id?: string) => Promise<boolean>;
   onDelete: (form: CompanyForm) => Promise<boolean>;
+  onShare: (form: CompanyForm) => Promise<string | null>;
   onNotice: (message: string) => void;
 };
 
 const categoryOptions = ["Showing · Rental", "Showing · Sale", "Transaction · Rental", "Transaction · Sale", "General", "Listing", "Buyer", "Seller", "Rental", "Accounting", "Other"];
 
-export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Props) {
+export function FormsPanel({ forms, canManage, onSave, onDelete, onShare, onNotice }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editor, setEditor] = useState<CompanyForm | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CompanyForm | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [shareTarget, setShareTarget] = useState<CompanyForm | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set());
   const categories = useMemo(() => Array.from(new Set(forms.map((form) => form.category))).sort(), [forms]);
   const fileTypes = useMemo(() => new Set(forms.map((form) => form.file_name.split(".").pop()?.toUpperCase()).filter(Boolean)).size, [forms]);
@@ -71,6 +75,17 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
     }
   };
 
+  const share = async (form: CompanyForm) => {
+    setShareTarget(form);
+    setShareUrl(null);
+    setShareLoading(true);
+    try {
+      setShareUrl(await onShare(form));
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   return <>
     <section className="forms-summary">
       <div><span>Available resources</span><strong>{forms.length}</strong><small>Ready for agent download</small></div>
@@ -101,6 +116,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
                 <div className="resource-row-copy"><h2>{form.title}</h2></div>
                 <div className="resource-row-actions">
                   {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} /><span>Download</span></a> : <button className="primary-button" disabled><Download size={15} /><span>Unavailable</span></button>}
+                  <button className="secondary-button resource-share-button" type="button" onClick={() => void share(form)}><Share2 size={15} /><span>Share</span></button>
                   {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => setDeleteTarget(form)}><Trash2 size={15} /></button></>}
                 </div>
               </article>)}
@@ -113,6 +129,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
 
     {editor && <FormEditor form={editor === "new" ? undefined : editor} onClose={() => setEditor(null)} onSave={async (draft, file, id) => { const ok = await onSave(draft, file, id); if (ok) { if (id) setEditor(null); onNotice(id ? "Resource updated" : "Resource uploaded"); } return ok; }} />}
     {deleteTarget && <DeleteResourceModal form={deleteTarget} deleting={deleting} onClose={() => !deleting && setDeleteTarget(null)} onConfirm={() => void remove()} />}
+    {shareTarget && <ShareResourceModal form={shareTarget} url={shareUrl} loading={shareLoading} onClose={() => { setShareTarget(null); setShareUrl(null); }} onNotice={onNotice} />}
   </>;
 }
 
@@ -185,6 +202,33 @@ function DeleteResourceModal({ form, deleting, onClose, onConfirm }: { form: Com
       <div><p className="eyebrow">Remove resource</p><h2 id="delete-resource-title">Delete “{form.title}”?</h2><p>This removes the file from the shared resource library. Team members will no longer be able to download it.</p></div>
       <div className="delete-resource-file"><span className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</span><span><strong>{form.file_name}</strong><small>{form.category} · {formatFileSize(form.file_size)}</small></span></div>
       <footer><button type="button" className="secondary-button" disabled={deleting} onClick={onClose}>Keep resource</button><button type="button" className="danger-button resource-delete-confirm" disabled={deleting} onClick={onConfirm}>{deleting ? "Deleting…" : "Delete resource"}</button></footer>
+    </section>
+  </div>;
+}
+
+function ShareResourceModal({ form, url, loading, onClose, onNotice }: { form: CompanyForm; url: string | null; loading: boolean; onClose: () => void; onNotice: (message: string) => void }) {
+  const [copied, setCopied] = useState(false);
+  const copyLink = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      onNotice("Public link copied");
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      onNotice("Unable to copy automatically. Select and copy the link below.");
+    }
+  };
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="confirm-modal resource-share-modal" role="dialog" aria-modal="true" aria-labelledby="share-resource-title">
+      <span className="share-modal-icon"><Link2 size={22} /></span>
+      <div><p className="eyebrow">Temporary public link</p><h2 id="share-resource-title">Share “{form.title}”</h2><p>Anyone with this link can open the file without signing in. The link expires automatically after 24 hours.</p></div>
+      <div className={`share-link-field ${loading ? "loading" : ""}`}>
+        <input readOnly aria-label="Temporary public link" value={loading ? "Creating secure link…" : url || "Unable to create link"} onFocus={(event) => event.currentTarget.select()} />
+        <button type="button" disabled={!url || loading} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Copy size={16} />}<span>{copied ? "Copied" : "Copy"}</span></button>
+      </div>
+      <div className="share-link-note"><span>24-hour access</span><small>The original resource stays private in the library.</small></div>
+      <footer><button type="button" className="secondary-button" onClick={onClose}>Close</button>{url && <a className="primary-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={15} />Open link</a>}</footer>
     </section>
   </div>;
 }
