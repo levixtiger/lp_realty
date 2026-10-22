@@ -115,8 +115,8 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onShare, onNoti
                 <div className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</div>
                 <div className="resource-row-copy"><h2>{form.title}</h2></div>
                 <div className="resource-row-actions">
-                  {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} /><span>Download</span></a> : <button className="primary-button" disabled><Download size={15} /><span>Unavailable</span></button>}
-                  <button className="secondary-button resource-share-button" type="button" onClick={() => void share(form)}><Share2 size={15} /><span>Share</span></button>
+                  {form.display_url ? <a className="primary-button resource-icon-action" href={form.display_url} target="_blank" rel="noreferrer" aria-label={`Download ${form.title}`} title="Download"><Download size={16} /></a> : <button className="primary-button resource-icon-action" disabled aria-label={`${form.title} is unavailable`} title="Unavailable"><Download size={16} /></button>}
+                  <button className="secondary-button resource-icon-action resource-share-button" type="button" onClick={() => void share(form)} aria-label={`Share ${form.title}`} title="Share"><Share2 size={16} /></button>
                   {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => setDeleteTarget(form)}><Trash2 size={15} /></button></>}
                 </div>
               </article>)}
