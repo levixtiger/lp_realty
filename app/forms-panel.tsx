@@ -36,6 +36,8 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editor, setEditor] = useState<CompanyForm | "new" | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyForm | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set());
   const categories = useMemo(() => Array.from(new Set(forms.map((form) => form.category))).sort(), [forms]);
   const fileTypes = useMemo(() => new Set(forms.map((form) => form.file_name.split(".").pop()?.toUpperCase()).filter(Boolean)).size, [forms]);
@@ -56,9 +58,17 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
     return next;
   });
 
-  const remove = async (form: CompanyForm) => {
-    if (!window.confirm(`Remove “${form.title}” from the resource library?`)) return;
-    if (await onDelete(form)) onNotice("Resource removed");
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      if (await onDelete(deleteTarget)) {
+        onNotice("Resource removed");
+        setDeleteTarget(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return <>
@@ -91,7 +101,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
                 <div className="resource-row-copy"><h2>{form.title}</h2><p>{form.description || "Company resource available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
                 <div className="resource-row-actions">
                   {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} /><span>Download</span></a> : <button className="primary-button" disabled><Download size={15} /><span>Unavailable</span></button>}
-                  {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => void remove(form)}><Trash2 size={15} /></button></>}
+                  {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => setDeleteTarget(form)}><Trash2 size={15} /></button></>}
                 </div>
               </article>)}
             </div>}
@@ -102,6 +112,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
     </section>
 
     {editor && <FormEditor form={editor === "new" ? undefined : editor} onClose={() => setEditor(null)} onSave={async (draft, file, id) => { const ok = await onSave(draft, file, id); if (ok) { if (id) setEditor(null); onNotice(id ? "Resource updated" : "Resource uploaded"); } return ok; }} />}
+    {deleteTarget && <DeleteResourceModal form={deleteTarget} deleting={deleting} onClose={() => !deleting && setDeleteTarget(null)} onConfirm={() => void remove()} />}
   </>;
 }
 
@@ -109,7 +120,13 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
   const [draft, setDraft] = useState<CompanyFormDraft>({ title: form?.title || "", description: form?.description || null, category: form?.category || "General" });
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const addFiles = (incoming: File[]) => {
+    const next = form ? incoming.slice(0, 1) : incoming;
+    setFiles((current) => form ? next : [...current, ...next.filter((file) => !current.some((item) => item.name === file.name && item.size === file.size))]);
+  };
+  const removeFile = (index: number) => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form && !files.length) return;
@@ -139,12 +156,36 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
         <label className="full">Description<textarea rows={3} value={draft.description || ""} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value || null }))} placeholder="Briefly explain when agents should use this form." /></label>
         <div className="full form-upload-field">
           <span>Document{form ? " replacement" : ""}</span>
-          <input ref={inputRef} type="file" hidden multiple={!form} accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*" onChange={(event) => setFiles(Array.from(event.target.files || []))} />
-          <button type="button" className={`form-dropzone ${files.length ? "has-file" : ""}`} onClick={() => inputRef.current?.click()}><UploadCloud size={23} /><strong>{files.length ? `${files.length} file${files.length === 1 ? "" : "s"} selected` : (form ? form.file_name : "Choose one or more documents")}</strong><small>{files.length ? files.map((file) => file.name).join(" · ") : form ? "Choose another file only if this resource has changed." : "PDF, Word, Excel, image, or text files"}</small></button>
+          <input ref={inputRef} type="file" hidden multiple={!form} accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*" onChange={(event) => { addFiles(Array.from(event.target.files || [])); event.target.value = ""; }} />
+          <button type="button" className={`form-dropzone ${files.length ? "has-file" : ""} ${dragActive ? "drag-active" : ""}`} onClick={() => inputRef.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { event.preventDefault(); setDragActive(false); }} onDrop={(event) => { event.preventDefault(); setDragActive(false); addFiles(Array.from(event.dataTransfer.files)); }}>
+            <span className="upload-cloud-icon"><UploadCloud size={23} /></span>
+            <strong>{dragActive ? "Drop files here" : form ? "Choose a replacement file" : "Drag files here or browse"}</strong>
+            <small>{form ? `Current file: ${form.file_name}` : "PDF, Word, Excel, images, or text · up to 50 MB each"}</small>
+            <span className="upload-browse-pill">Browse files</span>
+          </button>
+          {files.length > 0 && <div className="selected-resource-files" aria-live="polite">
+            <header><strong>{files.length} file{files.length === 1 ? "" : "s"} ready</strong><span>{formatFileSize(files.reduce((total, file) => total + file.size, 0))} total</span></header>
+            {files.map((file, index) => <div className="selected-resource-file" key={`${file.name}-${file.size}`}>
+              <span className={`selected-file-icon ${fileKind(file.name)}`}>{fileIcon(file.name)}</span>
+              <span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span>
+              <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeFile(index)}><X size={15} /></button>
+            </div>)}
+          </div>}
         </div>
       </div></section></div>
       <footer><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || (!form && !files.length)}>{saving ? "Saving…" : form ? "Save changes" : `Upload ${files.length || ""} resource${files.length === 1 ? "" : "s"}`}</button></footer>
     </form>
+  </div>;
+}
+
+function DeleteResourceModal({ form, deleting, onClose, onConfirm }: { form: CompanyForm; deleting: boolean; onClose: () => void; onConfirm: () => void }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="confirm-modal resource-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-resource-title">
+      <span className="delete-modal-icon"><Trash2 size={22} /></span>
+      <div><p className="eyebrow">Remove resource</p><h2 id="delete-resource-title">Delete “{form.title}”?</h2><p>This removes the file from the shared resource library. Team members will no longer be able to download it.</p></div>
+      <div className="delete-resource-file"><span className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</span><span><strong>{form.file_name}</strong><small>{form.category} · {formatFileSize(form.file_size)}</small></span></div>
+      <footer><button type="button" className="secondary-button" disabled={deleting} onClick={onClose}>Keep resource</button><button type="button" className="danger-button resource-delete-confirm" disabled={deleting} onClick={onConfirm}>{deleting ? "Deleting…" : "Delete resource"}</button></footer>
+    </section>
   </div>;
 }
 

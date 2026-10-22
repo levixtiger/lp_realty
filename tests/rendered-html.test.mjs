@@ -436,7 +436,9 @@ test("Forms library gives approved users private downloads and staff upload cont
   assert.match(listingPanel, /canManage={!isAgentAccess}/);
   assert.match(formsPanel, /Upload resources/);
   assert.match(formsPanel, /Download/);
-  assert.match(formsPanel, /Choose one or more documents/);
+  assert.match(formsPanel, /Drag files here or browse/);
+  assert.match(formsPanel, /multiple={!form}/);
+  assert.match(formsPanel, /DeleteResourceModal/);
   assert.match(clerkPanel, /COMPANY_FORMS_BUCKET = "company-forms"/);
   assert.match(clerkPanel, /from\("company_forms"\)/);
   assert.match(clerkPanel, /createSignedUrls\(companyFormPaths/);
