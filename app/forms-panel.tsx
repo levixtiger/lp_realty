@@ -98,7 +98,7 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onNotice }: Pro
             {!collapsed && <div className="resource-group-content" id={panelId}>
               {resources.map((form) => <article className="resource-row" key={form.id}>
                 <div className={`form-file-icon ${fileKind(form.file_name)}`}>{fileIcon(form.file_name)}</div>
-                <div className="resource-row-copy"><h2>{form.title}</h2><p>{form.description || "Company resource available for download."}</p><small>{form.file_name} · {formatFileSize(form.file_size)}</small></div>
+                <div className="resource-row-copy"><h2>{form.title}</h2></div>
                 <div className="resource-row-actions">
                   {form.display_url ? <a className="primary-button" href={form.display_url} target="_blank" rel="noreferrer"><Download size={15} /><span>Download</span></a> : <button className="primary-button" disabled><Download size={15} /><span>Unavailable</span></button>}
                   {canManage && <><button className="icon-button" aria-label={`Edit ${form.title}`} onClick={() => setEditor(form)}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label={`Delete ${form.title}`} onClick={() => setDeleteTarget(form)}><Trash2 size={15} /></button></>}

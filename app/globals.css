@@ -566,9 +566,7 @@ button { color: inherit; }
 .form-file-icon.sheet { background: #e8f2e9; color: #2d7041; }.form-file-icon.document { background: #eef0f7; color: #53658e; }
 .resource-row .form-file-icon { width: 40px; height: 40px; border-radius: 9px; }
 .resource-row-copy { min-width: 0; }
-.resource-row-copy h2 { margin: 0 0 3px; font-size: 12px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
-.resource-row-copy p { margin: 0; color: #758078; font-size: 9.5px; line-height: 1.4; overflow-wrap: anywhere; }
-.resource-row-copy small { display: block; margin-top: 5px; color: #929a95; font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resource-row-copy h2 { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
 .resource-row-actions { display: flex; align-items: center; gap: 7px; }
 .resource-row-actions .primary-button { min-height: 34px; text-decoration: none; }
 .danger-icon { color: #a65b56 !important; }
@@ -738,7 +736,7 @@ button { color: inherit; }
   .calendar-upcoming > div > button { grid-template-columns: 34px minmax(0, 1fr) 16px; padding: 9px 11px; gap: 8px; }.calendar-upcoming button > span:nth-child(3) { display: none; }.calendar-editor { width: 100%; }.calendar-editor footer .calendar-delete { flex: 1 1 100%; margin-right: 0; order: 3; }
   .forms-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }.forms-summary > div { min-height: 82px; padding: 12px 9px; }.forms-summary span { font-size: 7.5px; line-height: 1.3; }.forms-summary strong { font-size: 20px; }.forms-summary small { display: none; }
   .forms-toolbar { display: grid; grid-template-columns: 1fr 1fr; padding: 10px; }.forms-toolbar .search-box { grid-column: 1 / -1; min-width: 0; }.forms-toolbar select, .forms-toolbar .primary-button { width: 100%; min-width: 0; }
-  .resource-groups { padding: 10px; gap: 8px; }.resource-group-toggle { min-height: 58px; padding: 10px; grid-template-columns: 36px minmax(0, 1fr) 24px; gap: 9px; }.resource-group-icon { width: 36px; height: 36px; }.resource-row { padding: 11px 10px; grid-template-columns: 36px minmax(0, 1fr); gap: 9px; }.resource-row .form-file-icon { width: 36px; height: 36px; }.resource-row-actions { grid-column: 1 / -1; padding-left: 45px; }.resource-row-actions .primary-button { flex: 1; justify-content: center; }.resource-row-copy p { display: none; }
+  .resource-groups { padding: 10px; gap: 8px; }.resource-group-toggle { min-height: 58px; padding: 10px; grid-template-columns: 36px minmax(0, 1fr) 24px; gap: 9px; }.resource-group-icon { width: 36px; height: 36px; }.resource-row { padding: 11px 10px; grid-template-columns: 36px minmax(0, 1fr); gap: 9px; }.resource-row .form-file-icon { width: 36px; height: 36px; }.resource-row-actions { grid-column: 1 / -1; padding-left: 45px; }.resource-row-actions .primary-button { flex: 1; justify-content: center; }
   .contacts-intro { align-items: flex-start; flex-direction: column; }.contacts-intro .primary-button { width: 100%; }.contacts-toolbar { display: grid; grid-template-columns: 1fr; }.contacts-toolbar .search-box, .contacts-toolbar select { width: 100%; min-width: 0; }.contacts-grid { grid-template-columns: 1fr; padding: 10px; }
   .lead-contact-row { grid-template-columns: 1fr; }
   .openhouse-summary-row { grid-template-columns: 1fr; }
