@@ -136,14 +136,24 @@ export function FormsPanel({ forms, canManage, onSave, onDelete, onShare, onNoti
 function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: () => void; onSave: (draft: CompanyFormDraft, file?: File, id?: string) => Promise<boolean> }) {
   const [draft, setDraft] = useState<CompanyFormDraft>({ title: form?.title || "", description: form?.description || null, category: form?.category || "General" });
   const [files, setFiles] = useState<File[]>([]);
+  const [fileTitles, setFileTitles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const addFiles = (incoming: File[]) => {
     const next = form ? incoming.slice(0, 1) : incoming;
-    setFiles((current) => form ? next : [...current, ...next.filter((file) => !current.some((item) => item.name === file.name && item.size === file.size))]);
+    if (form) {
+      setFiles(next);
+      return;
+    }
+    const unique = next.filter((file) => !files.some((item) => item.name === file.name && item.size === file.size));
+    setFiles((current) => [...current, ...unique]);
+    setFileTitles((titles) => [...titles, ...unique.map((file) => humanizeFileName(file.name))]);
   };
-  const removeFile = (index: number) => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+  const removeFile = (index: number) => {
+    setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    setFileTitles((current) => current.filter((_, titleIndex) => titleIndex !== index));
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form && !files.length) return;
@@ -152,9 +162,9 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
       if (form) {
         await onSave({ ...draft, title: draft.title.trim(), description: draft.description?.trim() || null }, files[0], form.id);
       } else {
-        for (const file of files) {
-          const title = files.length === 1 && draft.title.trim() ? draft.title.trim() : humanizeFileName(file.name);
-          const ok = await onSave({ ...draft, title, description: draft.description?.trim() || null }, file);
+        for (const [index, file] of files.entries()) {
+          const title = fileTitles[index]?.trim() || humanizeFileName(file.name);
+          const ok = await onSave({ title, category: draft.category, description: null }, file);
           if (!ok) return;
         }
         onClose();
@@ -168,11 +178,10 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
     <form className="editor-modal form-editor" onSubmit={submit}>
       <header><div><p className="eyebrow">Resource library</p><h2>{form ? "Edit resource" : "Upload resources"}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={20} /></button></header>
       <div className="editor-content"><section><h3>Resource details</h3><div className="form-grid">
-        <label className="full">Title{!form && <small>Optional for batch uploads; filenames will become titles.</small>}<input required={Boolean(form)} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Exclusive right to sell agreement" /></label>
-        <label>Category<select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label className="full">Description<textarea rows={3} value={draft.description || ""} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value || null }))} placeholder="Briefly explain when agents should use this form." /></label>
+        <label className="full">Category row<small>Resources appear together under this collapsible row.</small><select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
+        {form && <label className="full">Resource name<small>This is the name shown inside the category row.</small><input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Exclusive right to sell agreement" /></label>}
         <div className="full form-upload-field">
-          <span>Document{form ? " replacement" : ""}</span>
+          <span>{form ? "Replace file" : "Files"}</span>
           <input ref={inputRef} type="file" hidden multiple={!form} accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*" onChange={(event) => { addFiles(Array.from(event.target.files || [])); event.target.value = ""; }} />
           <button type="button" className={`form-dropzone ${files.length ? "has-file" : ""} ${dragActive ? "drag-active" : ""}`} onClick={() => inputRef.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { event.preventDefault(); setDragActive(false); }} onDrop={(event) => { event.preventDefault(); setDragActive(false); addFiles(Array.from(event.dataTransfer.files)); }}>
             <span className="upload-cloud-icon"><UploadCloud size={23} /></span>
@@ -181,14 +190,15 @@ function FormEditor({ form, onClose, onSave }: { form?: CompanyForm; onClose: ()
             <span className="upload-browse-pill">Browse files</span>
           </button>
           {files.length > 0 && <div className="selected-resource-files" aria-live="polite">
-            <header><strong>{files.length} file{files.length === 1 ? "" : "s"} ready</strong><span>{formatFileSize(files.reduce((total, file) => total + file.size, 0))} total</span></header>
+            <header><strong>{form ? "Replacement ready" : `${files.length} resource${files.length === 1 ? "" : "s"} ready`}</strong><span>{formatFileSize(files.reduce((total, file) => total + file.size, 0))} total</span></header>
             {files.map((file, index) => <div className="selected-resource-file" key={`${file.name}-${file.size}`}>
               <span className={`selected-file-icon ${fileKind(file.name)}`}>{fileIcon(file.name)}</span>
-              <span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span>
+              {form ? <span className="selected-file-copy"><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span> : <label className="selected-file-name"><span>Resource name</span><input required value={fileTitles[index] || ""} onChange={(event) => setFileTitles((current) => current.map((title, titleIndex) => titleIndex === index ? event.target.value : title))} /><small>{file.name} · {formatFileSize(file.size)}</small></label>}
               <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeFile(index)}><X size={15} /></button>
             </div>)}
           </div>}
         </div>
+        <div className="full resource-auto-actions"><span><Download size={15} /><Share2 size={15} /></span><div><strong>Download and Share are added automatically</strong><small>Team members can download the file or create a temporary 24-hour public link.</small></div></div>
       </div></section></div>
       <footer><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving || (!form && !files.length)}>{saving ? "Saving…" : form ? "Save changes" : `Upload ${files.length || ""} resource${files.length === 1 ? "" : "s"}`}</button></footer>
     </form>

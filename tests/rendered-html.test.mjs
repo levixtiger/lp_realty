@@ -438,6 +438,8 @@ test("Forms library gives approved users private downloads and staff upload cont
   assert.match(formsPanel, /Download/);
   assert.match(formsPanel, /Drag files here or browse/);
   assert.match(formsPanel, /multiple={!form}/);
+  assert.match(formsPanel, /Category row/);
+  assert.match(formsPanel, /Download and Share are added automatically/);
   assert.match(formsPanel, /DeleteResourceModal/);
   assert.match(formsPanel, /Temporary public link/);
   assert.match(formsPanel, /expires automatically after 24 hours/);
