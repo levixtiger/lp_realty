@@ -930,6 +930,27 @@ export function AuthenticatedPanel() {
         .upsert(requestPayload, { onConflict: "clerk_user_id" }));
       if (requestError) throw new Error(requestError.message);
 
+      if (isCompanyEmail(userEmail)) {
+        const token = await session?.getToken({ skipCache: true });
+        if (!token) throw new Error("Unable to verify your company account.");
+        const approvalResponse = await fetch("/api/access/auto-approve", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            role: choice,
+            agentId: choice === "agent" ? matchedAgent?.id || null : null,
+          }),
+        });
+        const approvalResult = await approvalResponse.json() as { autoApproved?: boolean; error?: string };
+        if (!approvalResponse.ok || !approvalResult.autoApproved) {
+          throw new Error(approvalResult.error || "Unable to approve your company account automatically.");
+        }
+        setDatabaseAccessRole(choice);
+      }
+
       await user.reload();
       await load();
       return true;
@@ -1086,6 +1107,10 @@ function isMissingTableError(error: { message?: string; code?: string } | null, 
   if (!error) return false;
   const message = error.message?.toLowerCase() || "";
   return error.code === "42P01" || (message.includes(tableName.toLowerCase()) && message.includes("does not exist"));
+}
+
+function isCompanyEmail(email: string) {
+  return email.trim().toLowerCase().split("@").at(-1) === "linpanrealty.com";
 }
 
 function getAccountingAccessRole(publicMetadata?: unknown, unsafeMetadata?: unknown): AccountingAccessRole {

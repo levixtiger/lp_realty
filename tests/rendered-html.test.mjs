@@ -130,7 +130,11 @@ test("Supabase requests refresh stale Clerk JWTs and reload when the tab returns
 });
 
 test("registration onboarding assigns operator or agent access and binds agent profiles", async () => {
-  const clerkPanel = await readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8");
+  const [clerkPanel, autoApprovalRoute, autoApprovalMigration] = await Promise.all([
+    readFile(new URL("../app/clerk-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/access/auto-approve/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261026160000_add_company_domain_auto_approval.sql", import.meta.url), "utf8"),
+  ]);
 
   assert.match(clerkPanel, /Finish onboarding/);
   assert.match(clerkPanel, /I am an agent/);
@@ -150,6 +154,13 @@ test("registration onboarding assigns operator or agent access and binds agent p
   assert.match(clerkPanel, /from\("agents"\)/);
   assert.match(clerkPanel, /clerk_user_id: user\.id/);
   assert.match(clerkPanel, /hasAccessRole/);
+  assert.match(clerkPanel, /isCompanyEmail\(userEmail\)/);
+  assert.match(clerkPanel, /\/api\/access\/auto-approve/);
+  assert.match(autoApprovalRoute, /primaryEmail\?\.verification\?\.status !== "verified"/);
+  assert.match(autoApprovalRoute, /domain !== "linpanrealty\.com"/);
+  assert.match(autoApprovalMigration, /auto_approve_company_access/);
+  assert.match(autoApprovalMigration, /insert into public\.panel_user_roles/);
+  assert.match(autoApprovalMigration, /reviewed_by = 'auto:linpanrealty\.com'/);
   const [listingPanel, migration, databaseTypes] = await Promise.all([
     readFile(new URL("../app/listings-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20261009130000_add_access_requests.sql", import.meta.url), "utf8"),

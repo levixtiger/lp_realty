@@ -162,6 +162,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string;
       };
+      auto_approve_company_access: {
+        Args: { p_role: string; p_agent_id: string | null; p_email: string; p_secret: string };
+        Returns: string;
+      };
       get_access_requests: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Tables"]["access_requests"]["Row"][];
